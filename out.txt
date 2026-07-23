@@ -1,0 +1,16 @@
+🚀 مدرسة بديع لتعليم السياقة - المساعد الذكي...
+{"level":30,"time":"2026-07-23T14:44:22.423Z","pid":7280,"hostname":"DESKTOP-4HLG02F","class":"baileys","browser":["Ubuntu","Chrome","22.04.4"],"helloMsg":{"clientHello":{"ephemeral":"hn/Qlr4kDp6ZSU8ZwvTAbE4Lz7pY1m6na4pTfeZ2Hko="}},"msg":"connected to WA"}
+{"level":30,"time":"2026-07-23T14:44:22.522Z","pid":7280,"hostname":"DESKTOP-4HLG02F","class":"baileys","node":{"passive":false,"userAgent":{"platform":"WEB","appVersion":{"primary":2,"secondary":3000,"tertiary":1035194821},"mcc":"000","mnc":"000","osVersion":"0.1","device":"Desktop","osBuildNumber":"0.1","releaseChannel":"RELEASE","localeLanguageIso6391":"en","localeCountryIso31661Alpha2":"US"},"webInfo":{"webSubPlatform":"WEB_BROWSER"},"connectType":"WIFI_UNKNOWN","connectReason":"USER_ACTIVATED","devicePairingData":{"eRegid":"AAAARg==","eKeytype":"BQ==","eIdent":"62zDnoXDvHWW2eEGT5Fqvp6OMT8CPOC95zif2IphxWk=","eSkeyId":"AAAB","eSkeyVal":"yJULQoOUuR1pLg8NZH5fig03VOoRCyLKnpUx+auUFAs=","eSkeySig":"epZlnrChghsEFDxmupoogJcYvVw1cHYoKPoDbHljSEBXyU5vyZW3+BXNLcOURKLmbXusnm7u7tzv9XXo3CK6BA==","buildHash":"oslHHv+RCp4a5lmJCiiHLQ==","deviceProps":"CgZVYnVudHUYASAAKhUYgFAgATAAOAFAAUgBUAFYAWABcAE="},"pull":false},"msg":"not logged in, attempting registration..."}
+
+📱 QR كود:
+2@Mt+/OaEfEoe2IiSZ+0mCEiQJOkooZCKNJVSfn7GWo8htXgUmy88d1l+NBBf/ce+NQ+8HmBHJjIGN1W8q4j34gKWFTYamfun8+GE=,KNmPbUlVkcR0dx1TqhjQxFXUsh7iMiR8bVuPtsIfRkQ=,62zDnoXDvHWW2eEGT5Fqvp6OMT8CPOC95zif2IphxWk=,KX9ZAplrdtTrtAMDoOkpe79lhwxcSS120EgLJQBtYRg=
+
+🔑 طلب كود اقتران للرقم: 972568444407
+
+══════════════════════════════════
+🔐  كود الاقتران:
+    VE8B-D1GQ
+══════════════════════════════════
+📲  افتح واتساب > الإعدادات > الأجهزة المرتبطة
+    > ربط جهاز > الاقتران برقم الهاتف
+
