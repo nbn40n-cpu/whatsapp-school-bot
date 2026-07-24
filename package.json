@@ -2,7 +2,7 @@
   "name": "whatsapp-coach-assistant",
   "version": "1.0.0",
   "description": "مساعد المدرب سمير - ذكاء صناعي يرد على واتساب",
-  "main": "index.js",
+  "main": "wwjs-bot.js",
   "type": "module",
   "scripts": {
     "start": "node wwjs-bot.js",
