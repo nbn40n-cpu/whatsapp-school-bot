@@ -6,6 +6,7 @@ import {
   fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
 import { getAIResponse } from "./ai.js";
+import QR from "qrcode";
 
 const SCHOOL_NAME = "مدرسة بديع لتعليم السياقة";
 const PHONE = process.env.SCHOOL_PHONE || "0568444407";
@@ -43,9 +44,9 @@ async function startBot() {
     printQRInTerminal: false,
     syncFullHistory: false,
     markOnlineOnConnect: true,
-    connectTimeoutMs: 30000,
-    keepAliveIntervalMs: 25000,
-    generateHighByteLink: true,
+    connectTimeoutMs: 60000,
+    keepAliveIntervalMs: 30000,
+    browser: ["Chrome", "122.0.0.0", ""],
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -53,9 +54,15 @@ async function startBot() {
   let pairingDone = false;
 
   sock.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
-    if (qr && !pairingDone) {
-      console.log("\n📱 QR بديل:");
-      console.log(qr);
+    if (qr && !pairingDone && !state.creds?.registered) {
+      console.log("\n📱 تم استلام QR كود ...");
+      try {
+        await QR.toFile("qr_code.png", qr, { width: 400, margin: 2 });
+        console.log("✅ تم حفظ QR كود في: qr_code.png");
+        console.log("📂 افتح الملف وامسحه من واتساب تلفونك");
+      } catch (e) {
+        console.log("⚠️", e.message);
+      }
     }
 
     if (connection === "open") {
@@ -65,34 +72,38 @@ async function startBot() {
 
     if (connection === "close") {
       const r = lastDisconnect?.error?.output?.statusCode;
-      if (r === DisconnectReason.loggedOut || r === DisconnectReason.badSession) {
-        console.log("\n🚪 تم تسجيل الخروج. احذف auth_info واركض npm start");
+      if (r === DisconnectReason.loggedOut) {
+        console.log("\n🚪 تم تسجيل الخروج. احذف مجلد auth_info واركض npm start");
         return;
       }
-      console.log(`\n🔄 قطع (${r || "?"}). إعادة بعد 7 ثواني...`);
+      if (r === DisconnectReason.badSession) {
+        console.log("\n⚠️ جلسة تالفة. احذف auth_info واركض npm start");
+        return;
+      }
+      console.log(`\n🔄 قطع (${r || "?"}). إعادة بعد 10 ثواني...`);
       sock = null;
-      setTimeout(startBot, 7000);
+      setTimeout(startBot, 10000);
     }
   });
 
-  setTimeout(async () => {
-    try {
-      const num = fmtPhone(PHONE);
-      console.log(`\n🔑 طلب كود اقتران: ${num}`);
-      const code = await sock.requestPairingCode(num);
-      console.log(`\n══════════════════════════════════`);
-      console.log(`🔐  كود الاقتران:`);
-      console.log(`    ${code.match(/.{1,4}/g)?.join("-") || code}`);
-      console.log(`══════════════════════════════════`);
-      console.log(`📲  واتساب > الإعدادات > الأجهزة المرتبطة`);
-      console.log(`    > ربط جهاز > الاقتران برقم الهاتف\n`);
-      pairingDone = true;
-    } catch (e) {
-      if (!e.message?.includes("not available")) {
-        console.log("⚠️ كود الاقتران ما اشتغل، استخدم QR أعلاه");
+  if (!state.creds?.registered) {
+    setTimeout(async () => {
+      try {
+        const num = fmtPhone(PHONE);
+        const code = await sock.requestPairingCode(num);
+        const display = code.match(/.{1,4}/g)?.join("-") || code;
+        console.log(`\n🔐 كود الاقتران: ${display}`);
+        console.log(`📲 واتساب > الأجهزة المرتبطة > ربط جهاز > الاقتران برقم الهاتف\n`);
+        pairingDone = true;
+      } catch (e) {
+        if (!e.message?.includes("not available")) {
+          console.log("⚠️ كود الاقتران غير متاح، استخدم QR");
+        }
       }
-    }
-  }, 3000);
+    }, 4000);
+  } else {
+    console.log(`\n🔐 جلسة محفوظة. تسجيل الدخول...`);
+  }
 
   sock.ev.on("messages.upsert", async ({ messages }) => {
     for (const msg of messages) {
@@ -120,7 +131,7 @@ async function startBot() {
     }
   });
 
-  console.log(`🚀 ${SCHOOL_NAME} - المساعد الذكي يعمل...`);
+  console.log(`\n🚀 ${SCHOOL_NAME} - المساعد الذكي يعمل...`);
 }
 
 startBot();
