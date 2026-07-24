@@ -3,7 +3,7 @@ import pkg from "whatsapp-web.js";
 const { Client, LocalAuth } = pkg;
 import { getAIResponse } from "./ai.js";
 import QR from "qrcode";
-import qrterm from "qrcode-terminal";
+import path from "path";
 
 const SCHOOL_NAME = "مدرسة بديع لتعليم السياقة";
 const PHONE = process.env.SCHOOL_PHONE || "0568444407";
@@ -16,23 +16,34 @@ function fmtPhone(p) {
 
 const ownerJid = fmtPhone(PHONE) + "@c.us";
 
+const sessionPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
+  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "wwjs_session")
+  : "wwjs_session";
+
+const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH ||
+  (process.platform === "win32"
+    ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    : "/usr/bin/chromium");
+
 const client = new Client({
-  authStrategy: new LocalAuth({ dataPath: "wwjs_session" }),
+  authStrategy: new LocalAuth({ dataPath: sessionPath }),
   puppeteer: {
-    executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    executablePath: chromePath,
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
   },
 });
 
 client.on("qr", async (qr) => {
-  console.log(`\n📱 المسح بالواتساب:`);
-  qrterm.generate(qr, { small: true });
-  console.log(`📲 افتح واتساب تلفونك > الأجهزة المرتبطة > ربط جهاز\n`);
+  console.log(`\n══════════════════════════════════`);
+  console.log(`📱 امسح QR كود من واتساب تلفونك:`);
+  console.log(`   الإعدادات > الأجهزة المرتبطة > ربط جهاز`);
+  console.log(`══════════════════════════════════`);
 
   try {
     await QR.toFile("qr_code.png", qr, { width: 400, margin: 2 });
-    console.log(`✅ أو افتح الملف qr_code.png وامسحه\n`);
+    console.log(`✅ تم حفظ QR كصورة: qr_code.png`);
+    console.log(`📎 افتح الملف وامسحه من تلفونك\n`);
   } catch (_) {}
 });
 
