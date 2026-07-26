@@ -43,14 +43,13 @@ function ensureDir(p) {
 }
 
 let sock = null;
-let retryCount = 0;
+let attemptCount = 0;
 
 async function startBot() {
   if (sock) {
-    sock.removeAllListeners();
-    sock.end(undefined);
+    try { sock.removeAllListeners(); sock.end(undefined); } catch (_) {}
     sock = null;
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 1000));
   }
 
   const savedB64 = process.env.BAILEYS_AUTH_B64;
@@ -69,6 +68,7 @@ async function startBot() {
   const { version } = await fetchLatestBaileysVersion();
 
   const isRegistered = state.creds?.registered;
+  attemptCount++;
 
   sock = makeWASocket({
     version,
@@ -82,21 +82,14 @@ async function startBot() {
 
   sock.ev.on("creds.update", saveCreds);
 
-  let pairingDone = false;
-
   sock.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
-    if (qr && !pairingDone && !isRegistered) {
-      console.log("QR كود ورد - استخدمه إذا ظهر");
-    }
-
     if (connection === "open") {
-      pairingDone = true;
-      retryCount = 0;
+      attemptCount = 0;
       console.log(SCHOOL_NAME + " - المساعد متصل بالواتساب!");
 
       try {
         const b64 = serializeState(state);
-        console.log("\nBAILEYS_AUTH_B64 (احفظ هذا):");
+        console.log("\nBAILEYS_AUTH_B64 (انسخ هذا وأضفه كـ Variable):");
         console.log(b64);
         console.log("");
       } catch (_) {}
@@ -105,16 +98,15 @@ async function startBot() {
     if (connection === "close") {
       const r = lastDisconnect?.error?.output?.statusCode;
       if (r === DisconnectReason.loggedOut) {
-        console.log("تم تسجيل الخروج. امسح BAILEYS_AUTH_B64 وأعد النشر");
+        console.log("تم تسجيل الخروج.");
         return;
       }
       if (r === DisconnectReason.badSession) {
-        console.log("جلسة تالفة. امسح BAILEYS_AUTH_B64 وأعد النشر");
+        console.log("جلسة تالفة.");
         return;
       }
-      retryCount++;
-      const delay = Math.min(30000, retryCount * 5000);
-      console.log("قطع (" + (r || "?") + "). محاولة " + retryCount + ". إعادة بعد " + (delay / 1000) + " ثانية...");
+      const delay = Math.min(300000, attemptCount * 10000);
+      console.log("قطع (" + (r || "?") + "). محاولة " + attemptCount + ". إعادة بعد " + Math.round(delay / 60) + " دقيقة...");
       sock = null;
       setTimeout(startBot, delay);
     }
@@ -125,13 +117,16 @@ async function startBot() {
       try {
         const code = await sock.requestPairingCode(fmtPhone(PHONE));
         const display = code.match(/.{1,4}/g)?.join("-") || code;
-        console.log("\nكود الاقتران: " + display);
-        console.log("واتساب > الإعدادات > الأجهزة المرتبطة > ربط جهاز\n");
-        pairingDone = true;
+        console.log("\n" + "=".repeat(40));
+        console.log("كود الاقتران: " + display);
+        console.log("ادخله في واتساب تلفونك الآن");
+        console.log("واتساب > الإعدادات > الأجهزة المرتبطة > ربط جهاز");
+        console.log("=".repeat(40) + "\n");
+        console.log("لقد جرى إرسال الإشعار إلى هاتفك. تحقق من واتساب.");
       } catch (e) {
-        console.log("لم نتمكن من الحصول على كود الاقتران. جرب QR إذا ظهر");
+        console.log("محاولة الحصول على كود الاقتران فشلت. سيتم إعادة المحاولة...");
       }
-    }, 5000);
+    }, 20000);
   } else {
     console.log("جلسة محفوظة. تسجيل الدخول...");
   }
@@ -162,7 +157,7 @@ async function startBot() {
     }
   });
 
-  console.log(SCHOOL_NAME + " - المساعد الذكي يعمل...");
+  console.log(SCHOOL_NAME + " - المساعد الذكي يعمل (محاولة " + attemptCount + ")...");
 }
 
 startBot();
