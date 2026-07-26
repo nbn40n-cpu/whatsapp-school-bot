@@ -34,6 +34,10 @@ const client = new Client({
   },
 });
 
+const qrPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
+  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "qr_code.png")
+  : "qr_code.png";
+
 client.on("qr", async (qr) => {
   console.log(`\n══════════════════════════════════`);
   console.log(`امسح QR كود من واتساب تلفونك:`);
@@ -46,8 +50,8 @@ client.on("qr", async (qr) => {
   } catch (_) {}
 
   try {
-    await QR.toFile("qr_code.png", qr, { width: 400, margin: 2 });
-    console.log(`تم حفظ QR كصورة: qr_code.png\n`);
+    await QR.toFile(qrPath, qr, { width: 400, margin: 2 });
+    console.log(`تم حفظ QR كصورة: ${qrPath}\n`);
   } catch (_) {}
 });
 
