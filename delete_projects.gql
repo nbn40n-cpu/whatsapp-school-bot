@@ -1,0 +1,4 @@
+mutation {
+  delete1: projectDelete(id: "66708a86-0ce5-410c-bd69-5c06dae67aa1")
+  delete2: projectDelete(id: "e9c743e7-4e76-4ed7-a999-94782a50d53a")
+}
