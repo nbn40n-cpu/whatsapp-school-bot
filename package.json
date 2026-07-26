@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node wwjs-bot.js",
-    "baileys": "node index.js"
+    "baileys": "node index.js",
+    "termux": "node baileys-bot.js"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.23",
