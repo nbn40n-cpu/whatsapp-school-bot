@@ -4,6 +4,7 @@ const { Client, LocalAuth } = pkg;
 import { getAIResponse } from "./ai.js";
 import QR from "qrcode";
 import path from "path";
+import fs from "fs";
 
 const SCHOOL_NAME = "مدرسة بديع لتعليم السياقة";
 const PHONE = process.env.SCHOOL_PHONE || "0568444407";
@@ -25,12 +26,31 @@ const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH ||
     ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
     : "/usr/bin/chromium");
 
+if (process.env.CLEAR_SESSION === "true") {
+  try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch (_) {}
+} else {
+  try {
+    for (const f of fs.readdirSync(sessionPath)) {
+      if (f.startsWith("Singleton")) fs.rmSync(path.join(sessionPath, f), { recursive: true, force: true });
+    }
+  } catch (_) {}
+}
+
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: sessionPath }),
   puppeteer: {
     executablePath: chromePath,
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-gpu",
+      "--disable-dev-shm-usage",
+      "--single-process",
+      "--no-zygote",
+      "--disable-features=LockProfile",
+      "--disable-software-rasterizer",
+    ],
   },
 });
 
