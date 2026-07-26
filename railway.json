@@ -3,7 +3,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "node wwjs-bot.js",
+    "startCommand": "node baileys-bot.js",
     "restartPolicyType": "ALWAYS",
     "restartPolicyMaxRetries": 10
   }

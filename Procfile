@@ -1,1 +1,1 @@
-web: node wwjs-bot.js
+web: node baileys-bot.js

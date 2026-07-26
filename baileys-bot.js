@@ -2,9 +2,13 @@ import "dotenv/config";
 import { makeWASocket, useMultiFileAuthState, DisconnectReason } from "@whiskeysockets/baileys";
 import { getAIResponse } from "./ai.js";
 import QR from "qrcode-terminal";
+import path from "path";
 
 const SCHOOL_NAME = "مدرسة بديع لتعليم السياقة";
 const PHONE = process.env.SCHOOL_PHONE || "0568444407";
+const authPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
+  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "baileys_auth")
+  : "baileys_auth";
 
 function fmtPhone(p) {
   let c = p.replace(/\D/g, "");
@@ -15,7 +19,7 @@ function fmtPhone(p) {
 const ownerJid = fmtPhone(PHONE) + "@s.whatsapp.net";
 
 async function startBot() {
-  const { state, saveCreds } = await useMultiFileAuthState("baileys_auth");
+  const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
   const sock = makeWASocket({
     auth: state,

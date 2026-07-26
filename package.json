@@ -5,7 +5,7 @@
   "main": "wwjs-bot.js",
   "type": "module",
   "scripts": {
-    "start": "node wwjs-bot.js",
+    "start": "node baileys-bot.js",
     "baileys": "node index.js",
     "termux": "node baileys-bot.js"
   },
