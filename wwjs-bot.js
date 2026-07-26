@@ -73,6 +73,9 @@ client.on("qr", async (qr) => {
     await QR.toFile(qrPath, qr, { width: 400, margin: 2 });
     console.log(`تم حفظ QR كصورة: ${qrPath}\n`);
   } catch (_) {}
+
+  const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(qr)}&size=400`;
+  console.log(`\n🔗 رابط QR (افتحه في المتصفح):\n${qrUrl}\n`);
 });
 
 client.on("ready", () => {
