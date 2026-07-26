@@ -1,17 +1,9 @@
 FROM node:20-slim
 
-RUN apt-get update && apt-get install -y \
-  chromium \
-  chromium-sandbox \
-  --no-install-recommends \
-  && rm -rf /var/lib/apt/lists/*
-
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-  PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-
 WORKDIR /app
 COPY package*.json ./
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 RUN npm install
 COPY . .
 
-CMD ["node", "wwjs-bot.js"]
+CMD ["node", "baileys-bot.js"]

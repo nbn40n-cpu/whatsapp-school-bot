@@ -43,6 +43,7 @@ function ensureDir(p) {
 }
 
 let sock = null;
+let retryCount = 0;
 
 async function startBot() {
   if (sock) {
@@ -58,22 +59,23 @@ async function startBot() {
       const data = JSON.parse(Buffer.from(savedB64, "base64").toString());
       ensureDir(authPath);
       fs.writeFileSync(path.join(authPath, "creds.json"), JSON.stringify(data.creds, null, 2));
-      console.log("✅ تم استعادة الجلسة من BAILEYS_AUTH_B64");
+      console.log("تم استعادة الجلسة من BAILEYS_AUTH_B64");
     } catch (e) {
-      console.log("⚠️ فشل استعادة الجلسة من BAILEYS_AUTH_B64، نبدأ من الصفر");
+      console.log("فشل استعادة الجلسة - نبدأ من الصفر");
     }
   }
 
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
   const { version } = await fetchLatestBaileysVersion();
 
+  const isRegistered = state.creds?.registered;
+
   sock = makeWASocket({
     version,
     auth: state,
-    printQRInTerminal: false,
     syncFullHistory: false,
     markOnlineOnConnect: true,
-    connectTimeoutMs: 60000,
+    connectTimeoutMs: 120000,
     keepAliveIntervalMs: 30000,
     browser: ["Chrome", "122.0.0.0", ""],
   });
@@ -83,18 +85,18 @@ async function startBot() {
   let pairingDone = false;
 
   sock.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
-    if (qr && !pairingDone && !state.creds?.registered) {
-      console.log("\n📱 تم استلام QR كود - امسحه من تلفونك");
+    if (qr && !pairingDone && !isRegistered) {
+      console.log("QR كود ورد - استخدمه إذا ظهر");
     }
 
     if (connection === "open") {
       pairingDone = true;
-      console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل بالواتساب!`);
+      retryCount = 0;
+      console.log(SCHOOL_NAME + " - المساعد متصل بالواتساب!");
 
-      // Save backup auth string
       try {
         const b64 = serializeState(state);
-        console.log(`\n📌 BAILEYS_AUTH_B64 (احفظ هذا كـ Variable):`);
+        console.log("\nBAILEYS_AUTH_B64 (احفظ هذا):");
         console.log(b64);
         console.log("");
       } catch (_) {}
@@ -103,36 +105,35 @@ async function startBot() {
     if (connection === "close") {
       const r = lastDisconnect?.error?.output?.statusCode;
       if (r === DisconnectReason.loggedOut) {
-        console.log("\n🚪 تم تسجيل الخروج. امسح المتغير BAILEYS_AUTH_B64 وأعد النشر");
+        console.log("تم تسجيل الخروج. امسح BAILEYS_AUTH_B64 وأعد النشر");
         return;
       }
       if (r === DisconnectReason.badSession) {
-        console.log("\n⚠️ جلسة تالفة. امسح المتغير BAILEYS_AUTH_B64 وأعد النشر");
+        console.log("جلسة تالفة. امسح BAILEYS_AUTH_B64 وأعد النشر");
         return;
       }
-      console.log(`\n🔄 قطع (${r || "?"}). إعادة بعد 10 ثواني...`);
+      retryCount++;
+      const delay = Math.min(30000, retryCount * 5000);
+      console.log("قطع (" + (r || "?") + "). محاولة " + retryCount + ". إعادة بعد " + (delay / 1000) + " ثانية...");
       sock = null;
-      setTimeout(startBot, 10000);
+      setTimeout(startBot, delay);
     }
   });
 
-  if (!state.creds?.registered) {
+  if (!isRegistered) {
     setTimeout(async () => {
       try {
-        const num = fmtPhone(PHONE);
-        const code = await sock.requestPairingCode(num);
+        const code = await sock.requestPairingCode(fmtPhone(PHONE));
         const display = code.match(/.{1,4}/g)?.join("-") || code;
-        console.log(`\n🔐 كود الاقتران: ${display}`);
-        console.log("📲 واتساب > الإعدادات > الأجهزة المرتبطة > ربط جهاز\n");
+        console.log("\nكود الاقتران: " + display);
+        console.log("واتساب > الإعدادات > الأجهزة المرتبطة > ربط جهاز\n");
         pairingDone = true;
       } catch (e) {
-        if (!e.message?.includes("not available")) {
-          console.log("⚠️ كود الاقتران غير متاح حالياً، جرب QR إذا ظهر");
-        }
+        console.log("لم نتمكن من الحصول على كود الاقتران. جرب QR إذا ظهر");
       }
-    }, 4000);
+    }, 5000);
   } else {
-    console.log(`\n🔐 جلسة محفوظة. تسجيل الدخول...`);
+    console.log("جلسة محفوظة. تسجيل الدخول...");
   }
 
   sock.ev.on("messages.upsert", async ({ messages }) => {
@@ -142,26 +143,26 @@ async function startBot() {
       if (!text) continue;
 
       const sender = msg.key.remoteJid;
-      if (sender === `${fmtPhone(PHONE)}@s.whatsapp.net`) {
-        console.log(`🔇 (المالك): ${text}`);
+      if (sender === fmtPhone(PHONE) + "@s.whatsapp.net") {
+        console.log("(المالك): " + text);
         continue;
       }
 
-      console.log(`📩 ${sender}: ${text}`);
+      console.log(sender + ": " + text);
 
       try {
         await sock.sendPresenceUpdate("composing", sender);
         const reply = await getAIResponse(text);
         await sock.sendPresenceUpdate("paused", sender);
         await sock.sendMessage(sender, { text: reply });
-        console.log(`✅ ${reply.slice(0, 60)}...`);
+        console.log(reply.slice(0, 60) + "...");
       } catch (err) {
-        console.error("❌ خطأ:", err.message);
+        console.error("خطأ:", err.message);
       }
     }
   });
 
-  console.log(`\n🚀 ${SCHOOL_NAME} - المساعد الذكي يعمل...`);
+  console.log(SCHOOL_NAME + " - المساعد الذكي يعمل...");
 }
 
 startBot();
