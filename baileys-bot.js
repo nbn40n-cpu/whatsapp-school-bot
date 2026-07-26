@@ -19,8 +19,14 @@ async function startBot() {
 
   const sock = makeWASocket({
     auth: state,
-    printQRInTerminal: true,
     browser: ["Chrome", "Linux", "120"],
+    syncFullHistory: false,
+    markOnlineOnConnect: false,
+    generateHighQualityLinkPreview: false,
+    retryRequestDelayMs: 5000,
+    maxRetries: 3,
+    defaultQueryTimeoutMs: 30000,
+    keepAliveIntervalMs: 15000,
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -28,17 +34,21 @@ async function startBot() {
   sock.ev.on("connection.update", ({ connection, lastDisconnect, qr }) => {
     if (qr) {
       console.log("\n" + "=".repeat(40));
-      console.log("\u{1F4F1} امسح QR من واتساب:\n");
+      console.log("📱 امسح QR من واتساب:\n");
       QR.generate(qr, { small: true });
       console.log("\n" + "=".repeat(40));
     }
     if (connection === "open") {
-      console.log("\n\u2705 " + SCHOOL_NAME + " - المساعد متصل!");
+      console.log("\n✅ " + SCHOOL_NAME + " - المساعد متصل!");
     }
     if (connection === "close") {
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log("\n\u{1F504} قطع الاتصال...");
-      if (shouldReconnect) startBot();
+      const reason = lastDisconnect?.error?.output?.statusCode;
+      const shouldReconnect = reason !== DisconnectReason.loggedOut;
+      console.log("\n🔄 قطع الاتصال... (الكود: " + reason + ")");
+      if (shouldReconnect) {
+        console.log("🔄 إعادة محاولة بعد 3 ثواني...");
+        setTimeout(() => startBot(), 3000);
+      }
     }
   });
 
@@ -52,21 +62,21 @@ async function startBot() {
 
     const sender = msg.key.remoteJid;
     if (sender === ownerJid) {
-      console.log("\u{1F507} (المالك): " + text);
+      console.log("🔇 (المالك): " + text);
       return;
     }
 
-    console.log("\u{1F4E9} " + sender + ": " + text);
+    console.log("📩 " + sender + ": " + text);
 
     try {
       const reply = await getAIResponse(text);
       await sock.sendMessage(sender, { text: reply });
-      console.log("\u2705 " + reply.slice(0, 60) + "...");
+      console.log("✅ " + reply.slice(0, 60) + "...");
     } catch (err) {
-      console.error("\u274C خطأ:", err.message);
+      console.error("❌ خطأ:", err.message);
     }
   });
 }
 
-console.log("\n\u{1F680} " + SCHOOL_NAME + " - المساعد الذكي يعمل...");
+console.log("\n🚀 " + SCHOOL_NAME + " - المساعد الذكي يعمل...");
 startBot();
