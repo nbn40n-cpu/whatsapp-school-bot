@@ -5,6 +5,7 @@ import { getAIResponse } from "./ai.js";
 import QR from "qrcode";
 import path from "path";
 import fs from "fs";
+import http from "http";
 
 const SCHOOL_NAME = "مدرسة بديع لتعليم السياقة";
 const PHONE = process.env.SCHOOL_PHONE || "0568444407";
@@ -71,6 +72,7 @@ client.on("qr", async (qr) => {
 
   try {
     await QR.toFile(qrPath, qr, { width: 400, margin: 2 });
+    latestQrPath = qrPath;
     console.log(`تم حفظ QR كصورة: ${qrPath}\n`);
   } catch (_) {}
 
@@ -115,6 +117,61 @@ client.on("message", async (msg) => {
     console.log(`✅ ${reply.slice(0, 60)}...`);
   } catch (err) {
     console.error("❌ خطأ:", err.message);
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+let latestQrPath = null;
+
+http.createServer((req, res) => {
+  if (req.url === "/qr" || req.url === "/") {
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(`<!DOCTYPE html><html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QR Code - ${SCHOOL_NAME}</title>
+<style>body{background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;color:#fff;font-family:sans-serif}
+.qr-wrap{background:#fff;border-radius:12px;padding:16px}
+img{display:block;max-width:90vw;height:auto;image-rendering:pixelated}
+h3{text-align:center;margin-top:20px;color:#0f0}
+h4{text-align:center;color:#ff0;margin:5px 0}
+p{color:#aaa;font-size:14px;text-align:center}
+</style>
+</head><body>
+<div class="qr-wrap"><img src="/qr-image" alt="QR Code"></div>
+<h3 id="status">⏳ انتظر...</h3>
+<p>${SCHOOL_NAME} - المساعد الذكي</p>
+<script>
+const img=document.querySelector('img');
+fetch('/qr-status').then(r=>r.json()).then(d=>{
+  if(d.connected){document.getElementById('status').textContent='✅ متصل!';document.getElementById('status').style.color='#0f0'}
+  else if(d.qr){document.getElementById('status').textContent='📱 امسح QR';img.src='/qr-image?'+Date.now();setTimeout(()=>img.src='/qr-image?'+Date.now(),5000)}
+  else{document.getElementById('status').textContent='⚠️ لا يوجد QR بعد...'}
+});
+setInterval(()=>{img.src='/qr-image?'+Date.now()},5000);
+setInterval(()=>{fetch('/qr-status').then(r=>r.json()).then(d=>{
+  if(d.connected)document.getElementById('status').textContent='✅ متصل!'
+})},5000);
+</script>
+</body></html>`);
+  } else if (req.url === "/qr-image") {
+    if (latestQrPath && fs.existsSync(latestQrPath)) {
+      res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-cache" });
+      fs.createReadStream(latestQrPath).pipe(res);
+    } else {
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end("No QR yet");
+    }
+  } else if (req.url === "/qr-status") {
+    const connected = client.info ? true : false;
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ connected, qr: !!latestQrPath }));
+  } else {
+    res.writeHead(404); res.end();
+  }
+}).listen(PORT, () => {
+  console.log(`🌐 Web UI: http://localhost:${PORT}`);
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    console.log(`🌐 Public: https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
   }
 });
 
