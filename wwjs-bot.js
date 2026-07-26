@@ -36,14 +36,18 @@ const client = new Client({
 
 client.on("qr", async (qr) => {
   console.log(`\n══════════════════════════════════`);
-  console.log(`📱 امسح QR كود من واتساب تلفونك:`);
-  console.log(`   الإعدادات > الأجهزة المرتبطة > ربط جهاز`);
-  console.log(`══════════════════════════════════`);
+  console.log(`امسح QR كود من واتساب تلفونك:`);
+  console.log(`الإعدادات > الأجهزة المرتبطة > ربط جهاز`);
+  console.log(`══════════════════════════════════\n`);
+
+  try {
+    const qrTerminal = await QR.toString(qr, { type: "terminal", small: true });
+    console.log(qrTerminal);
+  } catch (_) {}
 
   try {
     await QR.toFile("qr_code.png", qr, { width: 400, margin: 2 });
-    console.log(`✅ تم حفظ QR كصورة: qr_code.png`);
-    console.log(`📎 افتح الملف وامسحه من تلفونك\n`);
+    console.log(`تم حفظ QR كصورة: qr_code.png\n`);
   } catch (_) {}
 });
 
