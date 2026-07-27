@@ -91,11 +91,6 @@ client.on("qr", async (qr) => {
 
 client.on("ready", () => {
   console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل بالواتساب!`);
-  // check if events work by evaluating the page
-  client.pupPage?.evaluate(() => {
-    console.log("🟢 WhatsApp Web page loaded");
-    return window.WWebVersion || "unknown";
-  }).then(v => console.log(`🟢 WWebVersion: ${v}`)).catch(e => console.log(`🟢 page eval: ${e.message}`));
   setInterval(() => {
     const info = client.info;
     if (info) console.log(`💓 heartbeat: connected as ${info.pushname || info.me}`);
@@ -110,7 +105,6 @@ client.on("auth_failure", (msg) => {
   console.error(`\n❌ فشل تسجيل الدخول:`, msg);
 });
 
-client.on("change_state", (state) => { console.log(`🔄 state: ${state}`); });
 client.on("disconnected", (reason) => {
   console.log(`\n🔄 قطع (${reason}). إعادة بعد 10 ثواني...`);
   setTimeout(() => client.initialize(), 10000);
@@ -131,8 +125,7 @@ setInterval(() => {
   if (idle > 120000) console.log(`🔍 idle=${idle}s`);
 }, 60000);
 
-client.on("message_create", (msg) => { console.log(`🔔 MC: fromMe=${msg.fromMe} from=${msg.from} body=${msg.body?.slice(0,30)}`); lastMsgTime = Date.now(); handleMsg(msg); });
-client.on("message", (msg) => { console.log(`🔔 M: fromMe=${msg.fromMe} from=${msg.from} body=${msg.body?.slice(0,30)}`); lastMsgTime = Date.now(); handleMsg(msg); });
+client.on("message_create", (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
 
 async function handleMsg(msg) {
   if (msg.fromMe) return;
@@ -153,7 +146,7 @@ async function handleMsg(msg) {
     firstReplies.add(msg.from);
     const isGreeting = /^(السلام عليكم|وعليكم السلام|مرحبا|اهلين|هلا|صباح|مساء|مرحب|hi|hello)\b/i.test(msg.body.trim());
     if (isGreeting) {
-      await msg.reply(GREETING);
+      await client.sendMessage(msg.from, GREETING);
       console.log(`✅ ترحيب: ${GREETING.slice(0, 50)}...`);
       return;
     }
@@ -163,22 +156,34 @@ async function handleMsg(msg) {
   // إذا الطالب قال شكراً → رد بنهاية المحادثة
   if (/^(شكرا|شكراً|تسلم|مشكور|يعطيك العافية|بارك الله فيك|الله يعطيك العافية)\b/i.test(msg.body.trim())) {
     const farewell = FAREWELLS[Math.floor(Math.random() * FAREWELLS.length)];
-    await msg.reply(farewell);
+    await client.sendMessage(msg.from, farewell);
     console.log(`👋 نهاية محادثة: ${farewell.slice(0, 40)}...`);
     return;
   }
 
+  async function sendWithRetry(text, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        await client.sendMessage(msg.from, text);
+        return;
+      } catch (e) {
+        console.log(`⚠️ send fail (${i+1}/${retries}): ${e.message?.slice(0,50)}`);
+        if (i < retries - 1) await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+      }
+    }
+  }
+
   try {
     const reply = await getAIResponse(msg.body);
-    await msg.reply(reply);
+    await sendWithRetry(reply);
     console.log(`✅ ${reply.slice(0, 60)}...`);
 
     // إذا الذكاء ما عرف يجاوب → يحول للمالك
     if (TRANSFER_PHRASES.some(p => reply.includes(p))) {
-      const contact = await msg.getContact();
-      const name = contact.pushname || contact.name || "طالب";
+      let name = "طالب";
+      try { const c = await msg.getContact(); name = c.pushname || c.name || "طالب"; } catch (_) {}
       const forwardMsg = `📞 تحويل من ${name} (${msg.from}):\n"${msg.body}"\n---\nرد البوت: ${reply}`;
-      await client.sendMessage(ownerJid, forwardMsg);
+      await sendWithRetry(forwardMsg);
       console.log(`📞 تم تحويل المحادثة للمالك`);
     }
   } catch (err) {
@@ -187,10 +192,10 @@ async function handleMsg(msg) {
       await new Promise(r => setTimeout(r, 5000));
       try {
         const reply = await getAIResponse(msg.body);
-        await msg.reply(reply);
+        await sendWithRetry(reply);
         console.log(`✅ ${reply.slice(0, 60)}...`);
       } catch (_) {
-        await msg.reply("عذراً، صار ضغط عالسيرفر. جرب بعد شوي...");
+        await client.sendMessage(msg.from, "عذراً، صار ضغط عالسيرفر. جرب بعد شوي...").catch(()=>{});
       }
     } else {
       console.error("❌ خطأ:", err.message);
