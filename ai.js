@@ -8,11 +8,11 @@ export async function getAIResponse(userMessage) {
     const completion = await groq.chat.completions.create({
       model: "llama-3.1-8b-instant",
       messages: [
-        { role: "system", content: `${schoolInfo}\nجاوب بجملة وحدة قصيرة.` },
+        { role: "system", content: `${schoolInfo}\nجاوب كامل ومفهوم.` },
         { role: "user", content: userMessage },
       ],
       temperature: 0.3,
-      max_tokens: 80,
+      max_tokens: 250,
     });
 
     return completion.choices[0]?.message?.content || "آسف، ما فهمت سؤالك. ممكن توضيح؟";
