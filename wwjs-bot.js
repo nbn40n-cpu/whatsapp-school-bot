@@ -118,14 +118,32 @@ const FAREWELLS = [
 ];
 const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "يتواصل معك"];
 
-// watchdog: فقط يراقب ولا يعيد شيء — السشن ثابت
-let lastMsgTime = Date.now();
-setInterval(() => {
-  const idle = Date.now() - lastMsgTime;
-  if (idle > 120000) console.log(`🔍 idle=${idle}s`);
-}, 60000);
-
 client.on("message_create", (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
+
+// fallback: يسأل الـ API عن آخر الرسايل لو events ما شغلت
+let lastMsgTime = Date.now();
+const seenIds = new Set();
+setInterval(async () => {
+  const idle = Date.now() - lastMsgTime;
+  if (idle > 60000 && client.info) {
+    try {
+      const chats = await client.getChats();
+      for (const chat of chats) {
+        if (chat.isGroup || chat.id._serialized.endsWith("@g.us")) continue;
+        if (chat.id._serialized === "status@broadcast") continue;
+        if (chat.lastMessage && chat.lastMessage.id && !seenIds.has(chat.lastMessage.id._serialized)) {
+          seenIds.add(chat.lastMessage.id._serialized);
+          const m = chat.lastMessage;
+          if (!m.fromMe && m.body) {
+            lastMsgTime = Date.now();
+            console.log(`📬 fallback: ${m.body.slice(0, 40)}`);
+            handleMsg(m);
+          }
+        }
+      }
+    } catch (_) {}
+  }
+}, 15000);
 
 async function handleMsg(msg) {
   if (msg.fromMe) return;
