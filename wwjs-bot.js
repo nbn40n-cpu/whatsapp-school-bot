@@ -276,8 +276,10 @@ async function startBot(retries = 5) {
         const sp = path.join(sessionPath, "session");
         if (fs.existsSync(sp)) {
           const sdirs = fs.readdirSync(sp);
-          console.log(`📂 session/ contents: [${sdirs.filter(d => !d.startsWith("Singleton") && d !== "LOCK").join(", ")}]`);
-        }
+        console.log(`📂 session/ contents: [${sdirs.filter(d => !d.startsWith("Singleton") && d !== "LOCK").join(", ")}]`);
+      }
+      const allFiles = fs.readdirSync(sessionPath).map(f => `${f} (${fs.statSync(path.join(sessionPath, f)).isDirectory() ? 'dir' : 'file'})`);
+      console.log(`📂 all in sessionPath: [${allFiles.join(", ")}]`);
       }
       await client.initialize();
       return;
