@@ -119,30 +119,14 @@ const FAREWELLS = [
 ];
 const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "يتواصل معك"];
 
-// watchdog: يراقب وصول الرسايل ويعيد تحميل الصفحة إذا صار في مشكلة
+// watchdog: فقط يراقب ولا يعيد شيء — السشن ثابت
 let lastMsgTime = Date.now();
-setInterval(async () => {
+setInterval(() => {
   const idle = Date.now() - lastMsgTime;
-  if (idle > 120000) {
-    console.log(`⚠️ ما وصلتش رسايل من دقيقتين. reload الصفحة...`);
-    try {
-      const page = client.pupPage;
-      if (page) {
-        await page.reload({ waitUntil: "networkidle0", timeout: 60000 });
-        console.log(`🔄 تم reload الصفحة`);
-      } else {
-        throw new Error("no page");
-      }
-    } catch (_) {
-      // إذا فشل الـ reload، نعيد تشغيل client
-      console.log(`⚠️ reload فشل، بعيد client...`);
-      try { await client.destroy(); } catch (__) {}
-      setTimeout(() => client.initialize(), 5000);
-    }
-  }
-}, 30000);
+  if (idle > 120000) console.log(`🔍 idle=${idle}s`);
+}, 60000);
 
-client.on("message", (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
+client.on("message_create", (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
 
 async function handleMsg(msg) {
   if (msg.fromMe) return;
