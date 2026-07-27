@@ -108,7 +108,11 @@ client.on("disconnected", (reason) => {
   setTimeout(() => client.initialize(), 10000);
 });
 
+client.on("message", (msg) => {
+  console.log(`📞 message event: ${msg.from?.slice(0,20)} body=${(msg.body||"").slice(0,40)}`);
+});
 client.on("message_create", async (msg) => {
+  console.log(`📨 raw: from=${msg.from ? String(msg.from).slice(0,25) : 'null'} body=${(msg.body||"").slice(0,40)}`);
   if (msg.fromMe) return;
   if (msg.isGroup || msg.from.endsWith("@g.us")) return;
   if (msg.from === "status@broadcast") return;
