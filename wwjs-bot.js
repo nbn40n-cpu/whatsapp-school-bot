@@ -141,12 +141,16 @@ async function handleMsg(msg) {
 
   console.log(`📩 ${msg.from}: ${msg.body}`);
 
-  // أول رسالة من الطالب → ترحيب مباشر بدون AI
+  // أول رسالة من الطالب
   if (!firstReplies.has(msg.from)) {
     firstReplies.add(msg.from);
-    await msg.reply(GREETING);
-    console.log(`✅ ترحيب: ${GREETING.slice(0, 50)}...`);
-    return;
+    const isGreeting = /^(السلام عليكم|وعليكم السلام|مرحبا|اهلين|هلا|صباح|مساء|مرحب|hi|hello)\b/i.test(msg.body.trim());
+    if (isGreeting) {
+      await msg.reply(GREETING);
+      console.log(`✅ ترحيب: ${GREETING.slice(0, 50)}...`);
+      return;
+    }
+    // إذا مش تحية، يكمل للـ AI
   }
 
   try {
