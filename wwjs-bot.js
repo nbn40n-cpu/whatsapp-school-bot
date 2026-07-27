@@ -269,6 +269,16 @@ async function startBot(retries = 5) {
   for (let i = 0; i < retries; i++) {
     try {
       console.log(`\n🚀 ${SCHOOL_NAME} - المساعد الذكي يعمل... (محاولة ${i + 1}/${retries})`);
+      console.log(`📂 sessionPath=${sessionPath} exists=${fs.existsSync(sessionPath)}`);
+      if (fs.existsSync(sessionPath)) {
+        const dirs = fs.readdirSync(sessionPath);
+        console.log(`📂 contents: [${dirs.join(", ")}]`);
+        const sp = path.join(sessionPath, "session");
+        if (fs.existsSync(sp)) {
+          const sdirs = fs.readdirSync(sp);
+          console.log(`📂 session/ contents: [${sdirs.filter(d => !d.startsWith("Singleton") && d !== "LOCK").join(", ")}]`);
+        }
+      }
       await client.initialize();
       return;
     } catch (err) {
