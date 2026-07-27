@@ -119,20 +119,26 @@ const FAREWELLS = [
 ];
 const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "يتواصل معك"];
 
-// watchdog: يراقب وصول الرسايل ويعيد الاتصال إذا صار في مشكلة
+// watchdog: يراقب وصول الرسايل ويعيد تحميل الصفحة إذا صار في مشكلة
 let lastMsgTime = Date.now();
 setInterval(async () => {
   const idle = Date.now() - lastMsgTime;
   if (idle > 120000) {
-    console.log(`⚠️ ما وصلتش رسايل من دقيقتين. بعيد الاتصال...`);
-    try { 
+    console.log(`⚠️ ما وصلتش رسايل من دقيقتين. reload الصفحة...`);
+    try {
       const page = client.pupPage;
-      if (page) await page.evaluate(() => null).catch(() => {});
-      await client.destroy(); 
-    } catch (_) {}
-    setTimeout(() => {
-      client.initialize();
-    }, 5000);
+      if (page) {
+        await page.reload({ waitUntil: "networkidle0", timeout: 60000 });
+        console.log(`🔄 تم reload الصفحة`);
+      } else {
+        throw new Error("no page");
+      }
+    } catch (_) {
+      // إذا فشل الـ reload، نعيد تشغيل client
+      console.log(`⚠️ reload فشل، بعيد client...`);
+      try { await client.destroy(); } catch (__) {}
+      setTimeout(() => client.initialize(), 5000);
+    }
   }
 }, 30000);
 
