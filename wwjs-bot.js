@@ -116,7 +116,6 @@ client.on("disconnected", (reason) => {
 });
 
 const firstReplies = new Set();
-const seenIds = new Set();
 const GREETING = "وعليكم السلام ورحمة الله وبركاته، أهلاً وسهلاً بك في مدرسة البديع لتعليم السياقة. أنا سوزي، مساعد المدرب سمير. تفضل، كيف أستطيع مساعدتك؟";
 const FAREWELLS = [
   "العفو، أهلاً وسهلاً بك. إذا احتجت أي استفسار آخر نحن جاهزون لخدمتك. نتمنى لك التوفيق.",
@@ -128,9 +127,6 @@ function isPersonal(from) { return from && !from.endsWith("@g.us") && from !== "
 
 client.on("message_create", (msg) => {
   if (msg.fromMe || !isPersonal(msg.from) || !msg.body) return;
-  const id = msg.id?._serialized || msg.id?.id || msg.id || msg.from + "_" + msg.timestamp;
-  if (seenIds.has(id)) return;
-  seenIds.add(id);
   lastMsgTime = Date.now();
   handleMsg(msg);
 });
