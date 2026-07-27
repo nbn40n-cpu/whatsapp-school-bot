@@ -267,8 +267,7 @@ process.on("unhandledRejection", (err) => {
 async function startBot(retries = 5) {
   for (let i = 0; i < retries; i++) {
     try {
-console.log(`\n🚀 ${SCHOOL_NAME} - المساعد الذكي يعمل... (محاولة ${i + 1}/${retries})`);
-      }
+      console.log(`\n🚀 ${SCHOOL_NAME} - المساعد الذكي يعمل... (محاولة ${i + 1}/${retries})`);
       await client.initialize();
       return;
     } catch (err) {
