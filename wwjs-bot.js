@@ -91,9 +91,10 @@ client.on("qr", async (qr) => {
 
 client.on("ready", () => {
   console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل بالواتساب!`);
+  if (client.info) console.log(`👤 jid=${client.info.me} pushname=${client.info.pushname}`);
   setInterval(() => {
     const info = client.info;
-    if (info) console.log(`💓 heartbeat: connected as ${info.pushname || info.me}`);
+    if (info) console.log(`💓 heartbeat: ${info.pushname || info.me}`);
   }, 60000);
 });
 
@@ -117,10 +118,11 @@ const FAREWELLS = [
   "على الرحب والسعة، نتمنى لك التوفيق، وأهلاً وسهلاً بك في مدرسة البديع لتعليم السياقة.",
 ];
 const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "يتواصل معك"];
-const seenIds = new Set();
 
 client.on("message_create", (msg) => {
   lastMsgTime = Date.now();
+  const type = msg.from?.endsWith("@g.us") ? "group" : msg.from?.endsWith("@lid") ? "personal(LID)" : msg.from?.endsWith("@c.us") ? "personal(CUS)" : "other";
+  console.log(`🔔 MC: ${type} fromMe=${msg.fromMe} body=${msg.body?.slice(0,30)}`);
   handleMsg(msg);
 });
 
