@@ -118,14 +118,16 @@ const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "ي�
 let lastMsgTime = Date.now();
 setInterval(async () => {
   const idle = Date.now() - lastMsgTime;
-  if (idle > 300000) {
-    console.log(`⚠️ ما وصلتش رسايل من 5 دقايق. بعيد الاتصال...`);
+  console.log(`🔍 watchdog: idle=${idle}s`);
+  if (idle > 120000) {
+    console.log(`⚠️ ما وصلتش رسايل من دقيقتين. بعيد الاتصال...`);
     try { await client.destroy(); } catch (_) {}
     setTimeout(() => client.initialize(), 5000);
   }
 }, 30000);
 
-client.on("message", async (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
+client.on("message", async (msg) => { lastMsgTime = Date.now(); if (!msg.fromMe) console.log(`📨 msg: ${msg.body?.slice(0,40)}`); handleMsg(msg); });
+client.on("message_create", async (msg) => { lastMsgTime = Date.now(); if (!msg.fromMe) console.log(`📨 msg_c: ${msg.body?.slice(0,40)}`); handleMsg(msg); });
 
 async function handleMsg(msg) {
   if (msg.fromMe) return;
