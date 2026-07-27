@@ -1,0 +1,23 @@
+query {
+  project(id: "f851a7af-c2b2-457f-addf-ab264b54cb30") {
+    id
+    name
+    services {
+      edges {
+        node {
+          id
+          name
+          deployments(last: 5) {
+            edges {
+              node {
+                id
+                status
+                staticUrl
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
