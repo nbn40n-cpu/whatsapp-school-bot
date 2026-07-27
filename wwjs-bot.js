@@ -117,33 +117,14 @@ const FAREWELLS = [
   "على الرحب والسعة، نتمنى لك التوفيق، وأهلاً وسهلاً بك في مدرسة البديع لتعليم السياقة.",
 ];
 const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "يتواصل معك"];
-
-client.on("message_create", (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
-
-// fallback: يسأل الـ API عن آخر الرسايل لو events ما شغلت
-let lastMsgTime = Date.now();
 const seenIds = new Set();
-setInterval(async () => {
-  const idle = Date.now() - lastMsgTime;
-  if (idle > 60000 && client.info) {
-    try {
-      const chats = await client.getChats();
-      for (const chat of chats) {
-        if (chat.isGroup || chat.id._serialized.endsWith("@g.us")) continue;
-        if (chat.id._serialized === "status@broadcast") continue;
-        if (chat.lastMessage && chat.lastMessage.id && !seenIds.has(chat.lastMessage.id._serialized)) {
-          seenIds.add(chat.lastMessage.id._serialized);
-          const m = chat.lastMessage;
-          if (!m.fromMe && m.body) {
-            lastMsgTime = Date.now();
-            console.log(`📬 fallback: ${m.body.slice(0, 40)}`);
-            handleMsg(m);
-          }
-        }
-      }
-    } catch (_) {}
-  }
-}, 15000);
+
+client.on("message_create", (msg) => {
+  lastMsgTime = Date.now();
+  handleMsg(msg);
+});
+
+let lastMsgTime = Date.now();
 
 async function handleMsg(msg) {
   if (msg.fromMe) return;
@@ -240,7 +221,7 @@ p{color:#aaa;font-size:14px;text-align:center}
 </head><body>
 <div class="qr-wrap"><img src="/qr-image" alt="QR Code"></div>
 <h3 id="status">⏳ انتظر...</h3>
-<p>${SCHOOL_NAME} - المساعد الذكي</p>
+<p>${SCHOOL_NAME} - المساعد</p>
 <script>
 const img=document.querySelector('img');
 fetch('/qr-status').then(r=>r.json()).then(d=>{
@@ -286,7 +267,7 @@ process.on("unhandledRejection", (err) => {
 async function startBot(retries = 5) {
   for (let i = 0; i < retries; i++) {
     try {
-      console.log(`\n🚀 ${SCHOOL_NAME} - المساعد الذكي يعمل... (محاولة ${i + 1}/${retries})`);
+      console.log(`\n🚀 ${SCHOOL_NAME} - المساعد يعمل... (محاولة ${i + 1}/${retries})`);
       await client.initialize();
       return;
     } catch (err) {
