@@ -113,6 +113,10 @@ client.on("disconnected", (reason) => {
 
 const firstReplies = new Set();
 const GREETING = "وعليكم السلام ورحمة الله وبركاته، أهلاً وسهلاً بك في مدرسة البديع لتعليم السياقة. أنا سوزي، مساعد المدرب سمير. تفضل، كيف أستطيع مساعدتك؟";
+const FAREWELLS = [
+  "العفو، أهلاً وسهلاً بك. إذا احتجت أي استفسار آخر نحن جاهزون لخدمتك. نتمنى لك التوفيق.",
+  "على الرحب والسعة، نتمنى لك التوفيق، وأهلاً وسهلاً بك في مدرسة البديع لتعليم السياقة.",
+];
 const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "يتواصل معك"];
 
 // watchdog: يراقب وصول الرسايل ويعيد الاتصال إذا صار في مشكلة
@@ -162,6 +166,14 @@ async function handleMsg(msg) {
       return;
     }
     // إذا مش تحية، يكمل للـ AI
+  }
+
+  // إذا الطالب قال شكراً → رد بنهاية المحادثة
+  if (/^(شكرا|شكراً|تسلم|مشكور|يعطيك العافية|بارك الله فيك|الله يعطيك العافية)\b/i.test(msg.body.trim())) {
+    const farewell = FAREWELLS[Math.floor(Math.random() * FAREWELLS.length)];
+    await msg.reply(farewell);
+    console.log(`👋 نهاية محادثة: ${farewell.slice(0, 40)}...`);
+    return;
   }
 
   try {
