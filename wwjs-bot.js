@@ -99,7 +99,7 @@ client.on("ready", async () => {
   setInterval(() => {
     const i = client.info;
     if (i) console.log(`💓`);
-  }, 60000);
+}, 120000);
 });
 
 client.on("authenticated", () => {
@@ -136,28 +136,6 @@ client.on("message_create", (msg) => {
 });
 
 let lastMsgTime = Date.now();
-// fallback: يجيب الرسايل من الـ API لو events ما شغلت للشخصي
-setInterval(async () => {
-  if (!client.info || !client.pupPage) return;
-  const idle = Date.now() - lastMsgTime;
-  if (idle < 120000) return;
-  try {
-    const chats = await client.getChats();
-    for (const chat of chats) {
-      if (!isPersonal(chat.id._serialized)) continue;
-      const m = chat.lastMessage;
-      if (m && !m.fromMe && m.body) {
-        const id = m.id?._serialized || m.id?.id || m.id || `${m.from}_${m.timestamp}`;
-        if (seenIds.has(id)) continue;
-        seenIds.add(id);
-        lastMsgTime = Date.now();
-        console.log(`📬 poll: ${id} ${m.body.slice(0,30)}`);
-        handleMsg(m);
-      }
-    }
-  } catch (_) {}
-}, 60000);
-
 async function handleMsg(msg) {
   if (msg.fromMe) return;
   if (!msg.from) return;
