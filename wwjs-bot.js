@@ -112,7 +112,19 @@ const firstReplies = new Set();
 const GREETING = "مرحباً! أهلاً بك في مدرسة بديع لتعليم السياقة. أنا مساعدة المدرب سمير، أي استفسار تفضل.";
 const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "يتواصل معك"];
 
-client.on("message_create", async (msg) => {
+// watchdog: كل 5 دقائق تأكد إنه في رسايل واصلة
+let lastMsgTime = Date.now();
+setInterval(() => {
+  if (Date.now() - lastMsgTime > 600000) {
+    console.log("⚠️ ما وصلتش رسايل من 10 دقايق. بعيد الاتصال...");
+    client.destroy().catch(() => {});
+    setTimeout(() => client.initialize(), 5000);
+  }
+}, 60000);
+
+client.on("message", async (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
+
+async function handleMsg(msg) {
   if (msg.fromMe) return;
   if (msg.isGroup || msg.from.endsWith("@g.us")) return;
   if (msg.from === "status@broadcast") return;
@@ -161,7 +173,7 @@ client.on("message_create", async (msg) => {
       console.error("❌ خطأ:", err.message);
     }
   }
-});
+}
 
 const PORT = process.env.PORT || 3000;
 let latestQrPath = null;
