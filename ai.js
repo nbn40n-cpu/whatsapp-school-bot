@@ -6,7 +6,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 export async function getAIResponse(userMessage) {
   try {
     const completion = await groq.chat.completions.create({
-      model: "gemma2-9b-it",
+      model: "llama-3.1-8b-instant",
       messages: [
         { role: "system", content: `# أنت سوزي مساعدة المدرسة
 ${schoolInfo}
