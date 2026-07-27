@@ -10,7 +10,7 @@ export async function getAIResponse(userMessage) {
       messages: [
         {
           role: "system",
-          content: `${schoolInfo}\n\nاسمك سوزي. تكلم عامية فلسطينية. جاوب بجملة أو جملتين فقط.`,
+          content: `${schoolInfo}\n\nاسمك سوزي. جاوب بجملة أو جملتين فقط. لا تبدأ بترحيب.`,
         },
         {
           role: "user",
