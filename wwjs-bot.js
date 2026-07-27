@@ -197,6 +197,13 @@ setInterval(()=>{fetch('/qr-status').then(r=>r.json()).then(d=>{
   }
 });
 
+process.on("uncaughtException", (err) => {
+  console.error("💥 uncaughtException:", err.message);
+});
+process.on("unhandledRejection", (err) => {
+  console.error("💥 unhandledRejection:", err.message);
+});
+
 async function startBot(retries = 5) {
   for (let i = 0; i < retries; i++) {
     try {
