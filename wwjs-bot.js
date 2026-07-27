@@ -118,15 +118,24 @@ const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "ي�
 let lastMsgTime = Date.now();
 setInterval(async () => {
   const idle = Date.now() - lastMsgTime;
-  console.log(`🔍 watchdog: idle=${idle}s`);
   if (idle > 120000) {
     console.log(`⚠️ ما وصلتش رسايل من دقيقتين. بعيد الاتصال...`);
-    try { await client.destroy(); } catch (_) {}
-    setTimeout(() => client.initialize(), 5000);
+    try { 
+      const page = client.pupPage;
+      if (page) await page.evaluate(() => null).catch(() => {});
+      await client.destroy(); 
+    } catch (_) {}
+    setTimeout(() => {
+      // نضف session كمان
+      const cp = path.join(sessionPath, "session");
+      try { fs.rmSync(cp, { recursive: true, force: true }); } catch (_) {}
+      client.initialize();
+    }, 5000);
   }
 }, 30000);
 
-client.on("message", (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
+client.on("message", (msg) => { if (msg.body) console.log(`📨 evt: ${msg.body.slice(0,30)}`); lastMsgTime = Date.now(); handleMsg(msg); });
+client.on("message_create", (msg) => { if (msg.body) console.log(`📨 evt_c: ${msg.body.slice(0,30)}`); lastMsgTime = Date.now(); handleMsg(msg); });
 
 async function handleMsg(msg) {
   if (msg.fromMe) return;
