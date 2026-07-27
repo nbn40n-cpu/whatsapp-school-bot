@@ -127,8 +127,8 @@ const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "ي�
 function isPersonal(from) { return from && !from.endsWith("@g.us") && from !== "status@broadcast"; }
 
 client.on("message_create", (msg) => {
-  if (msg.fromMe || !isPersonal(msg.from) || !msg.body || !msg.id) return;
-  const id = msg.id._serialized || msg.id.id || msg.id;
+  if (msg.fromMe || !isPersonal(msg.from) || !msg.body) return;
+  const id = msg.id?._serialized || msg.id?.id || msg.id || msg.from + "_" + msg.timestamp;
   if (seenIds.has(id)) return;
   seenIds.add(id);
   lastMsgTime = Date.now();
@@ -140,14 +140,14 @@ let lastMsgTime = Date.now();
 setInterval(async () => {
   if (!client.info || !client.pupPage) return;
   const idle = Date.now() - lastMsgTime;
-  if (idle < 30000) return;
+  if (idle < 120000) return;
   try {
     const chats = await client.getChats();
     for (const chat of chats) {
       if (!isPersonal(chat.id._serialized)) continue;
       const m = chat.lastMessage;
-      if (m && !m.fromMe && m.body && m.id) {
-        const id = m.id._serialized || m.id.id || m.id;
+      if (m && !m.fromMe && m.body) {
+        const id = m.id?._serialized || m.id?.id || m.id || `${m.from}_${m.timestamp}`;
         if (seenIds.has(id)) continue;
         seenIds.add(id);
         lastMsgTime = Date.now();
@@ -156,7 +156,7 @@ setInterval(async () => {
       }
     }
   } catch (_) {}
-}, 20000);
+}, 60000);
 
 async function handleMsg(msg) {
   if (msg.fromMe) return;
