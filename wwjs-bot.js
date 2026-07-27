@@ -106,7 +106,7 @@ client.on("disconnected", (reason) => {
 
 client.on("message", async (msg) => {
   if (msg.fromMe) return;
-  if (msg.isGroup) return;
+  if (msg.isGroup || msg.from.endsWith("@g.us")) return;
   if (msg.from === "status@broadcast") return;
   if (msg.from.endsWith("@lid")) return;
   if (!msg.body || msg.body.trim() === "") return;
@@ -123,7 +123,19 @@ client.on("message", async (msg) => {
     await msg.reply(reply);
     console.log(`✅ ${reply.slice(0, 60)}...`);
   } catch (err) {
-    console.error("❌ خطأ:", err.message);
+    if (err.message && err.message.includes("429")) {
+      console.error("⚠️ Rate limit, waiting 5s...");
+      await new Promise(r => setTimeout(r, 5000));
+      try {
+        const reply = await getAIResponse(msg.body);
+        await msg.reply(reply);
+        console.log(`✅ ${reply.slice(0, 60)}...`);
+      } catch (_) {
+        await msg.reply("عذراً، صار ضغط عالسيرفر. جرب بعد شوي...");
+      }
+    } else {
+      console.error("❌ خطأ:", err.message);
+    }
   }
 });
 
