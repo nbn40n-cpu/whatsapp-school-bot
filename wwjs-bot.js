@@ -108,11 +108,11 @@ client.on("disconnected", (reason) => {
   setTimeout(() => client.initialize(), 10000);
 });
 
-client.on("message", (msg) => {
-  console.log(`📞 message event: ${msg.from?.slice(0,20)} body=${(msg.body||"").slice(0,40)}`);
-});
+const firstReplies = new Set();
+const GREETING = "مرحباً! أهلاً بك في مدرسة بديع لتعليم السياقة. أنا مساعدة المدرب سمير، أي استفسار تفضل.";
+const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "يتواصل معك"];
+
 client.on("message_create", async (msg) => {
-  console.log(`📨 raw: from=${msg.from ? String(msg.from).slice(0,25) : 'null'} body=${(msg.body||"").slice(0,40)}`);
   if (msg.fromMe) return;
   if (msg.isGroup || msg.from.endsWith("@g.us")) return;
   if (msg.from === "status@broadcast") return;
@@ -125,10 +125,27 @@ client.on("message_create", async (msg) => {
 
   console.log(`📩 ${msg.from}: ${msg.body}`);
 
+  // أول رسالة من الطالب → ترحيب مباشر بدون AI
+  if (!firstReplies.has(msg.from)) {
+    firstReplies.add(msg.from);
+    await msg.reply(GREETING);
+    console.log(`✅ ترحيب: ${GREETING.slice(0, 50)}...`);
+    return;
+  }
+
   try {
     const reply = await getAIResponse(msg.body);
     await msg.reply(reply);
     console.log(`✅ ${reply.slice(0, 60)}...`);
+
+    // إذا الذكاء ما عرف يجاوب → يحول للمالك
+    if (TRANSFER_PHRASES.some(p => reply.includes(p))) {
+      const contact = await msg.getContact();
+      const name = contact.pushname || contact.name || "طالب";
+      const forwardMsg = `📞 تحويل من ${name} (${msg.from}):\n"${msg.body}"\n---\nرد البوت: ${reply}`;
+      await client.sendMessage(ownerJid, forwardMsg);
+      console.log(`📞 تم تحويل المحادثة للمالك`);
+    }
   } catch (err) {
     if (err.message && err.message.includes("429")) {
       console.error("⚠️ Rate limit, waiting 5s...");
