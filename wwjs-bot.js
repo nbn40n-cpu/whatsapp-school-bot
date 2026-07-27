@@ -197,5 +197,24 @@ setInterval(()=>{fetch('/qr-status').then(r=>r.json()).then(d=>{
   }
 });
 
-console.log(`\n🚀 ${SCHOOL_NAME} - المساعد الذكي يعمل...`);
-client.initialize();
+async function startBot(retries = 5) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      console.log(`\n🚀 ${SCHOOL_NAME} - المساعد الذكي يعمل... (محاولة ${i + 1}/${retries})`);
+      await client.initialize();
+      return;
+    } catch (err) {
+      console.error(`❌ محاولة ${i + 1} فشلت:`, err.message);
+      // نضف الـ Chrome profile بالكامل
+      const chromeProfile = path.join(sessionPath, "session");
+      try { fs.rmSync(chromeProfile, { recursive: true, force: true }); } catch (_) {}
+      const wait = 5 * (i + 1);
+      console.log(`⏳ ننتظر ${wait} ثواني ونعيد المحاولة...`);
+      await new Promise(r => setTimeout(r, wait * 1000));
+    }
+  }
+  console.error(`❌ فشل تشغيل البوت بعد ${retries} محاولات`);
+  process.exit(1);
+}
+
+startBot();
