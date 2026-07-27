@@ -130,7 +130,6 @@ client.on("message_create", (msg) => { lastMsgTime = Date.now(); handleMsg(msg);
 client.on("message", (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
 
 async function handleMsg(msg) {
-  try {
   if (msg.fromMe) return;
   if (!msg.from) return;
   if (msg.isGroup || msg.from.endsWith("@g.us")) return;
