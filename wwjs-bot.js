@@ -105,6 +105,7 @@ client.on("auth_failure", (msg) => {
   console.error(`\n❌ فشل تسجيل الدخول:`, msg);
 });
 
+client.on("change_state", (state) => { console.log(`🔄 state: ${state}`); });
 client.on("disconnected", (reason) => {
   console.log(`\n🔄 قطع (${reason}). إعادة بعد 10 ثواني...`);
   setTimeout(() => client.initialize(), 10000);
@@ -134,8 +135,8 @@ setInterval(async () => {
   }
 }, 30000);
 
-client.on("message", (msg) => { if (msg.body) console.log(`📨 evt: ${msg.body.slice(0,30)}`); lastMsgTime = Date.now(); handleMsg(msg); });
-client.on("message_create", (msg) => { if (msg.body) console.log(`📨 evt_c: ${msg.body.slice(0,30)}`); lastMsgTime = Date.now(); handleMsg(msg); });
+client.on("message", (msg) => { console.log(`🔔 msg from=${msg.from?.slice(0,20)}`); lastMsgTime = Date.now(); handleMsg(msg); });
+client.on("message_create", (msg) => { console.log(`🔔 msg_c from=${msg.from?.slice(0,20)}`); lastMsgTime = Date.now(); handleMsg(msg); });
 
 async function handleMsg(msg) {
   if (msg.fromMe) return;
