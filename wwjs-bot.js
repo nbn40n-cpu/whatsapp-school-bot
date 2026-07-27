@@ -27,23 +27,21 @@ const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH ||
     ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
     : "/usr/bin/chromium");
 
-function deleteSingletonFiles(dir) {
-  try {
-    if (!fs.existsSync(dir)) return;
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.name.startsWith("Singleton")) {
-        fs.rmSync(full, { recursive: true, force: true });
-      } else if (entry.isDirectory()) {
-        deleteSingletonFiles(full);
-      }
-    }
-  } catch (_) {}
-}
 if (process.env.CLEAR_SESSION === "true") {
   try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch (_) {}
 } else {
-  deleteSingletonFiles(sessionPath);
+  // Delete Chrome profile files but keep WhatsApp auth (Session/ dir)
+  const chromeProfile = path.join(sessionPath, "session");
+  try {
+    if (fs.existsSync(chromeProfile)) {
+      for (const entry of fs.readdirSync(chromeProfile)) {
+        const full = path.join(chromeProfile, entry);
+        if (entry.startsWith("Singleton") || entry === "LOCK") {
+          fs.rmSync(full, { recursive: true, force: true });
+        }
+      }
+    }
+  } catch (_) {}
 }
 
 const client = new Client({
