@@ -58,7 +58,9 @@ const client = new Client({
       "--no-zygote",
       "--disable-features=LockProfile",
       "--disable-software-rasterizer",
+      "--disable-blink-features=AutomationControlled",
     ],
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
   },
 });
 
@@ -112,15 +114,16 @@ const firstReplies = new Set();
 const GREETING = "مرحباً! أهلاً بك في مدرسة بديع لتعليم السياقة. أنا مساعدة المدرب سمير، أي استفسار تفضل.";
 const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "يتواصل معك"];
 
-// watchdog: كل 5 دقائق تأكد إنه في رسايل واصلة
+// watchdog: يراقب وصول الرسايل ويعيد الاتصال إذا صار في مشكلة
 let lastMsgTime = Date.now();
-setInterval(() => {
-  if (Date.now() - lastMsgTime > 600000) {
-    console.log("⚠️ ما وصلتش رسايل من 10 دقايق. بعيد الاتصال...");
-    client.destroy().catch(() => {});
+setInterval(async () => {
+  const idle = Date.now() - lastMsgTime;
+  if (idle > 300000) {
+    console.log(`⚠️ ما وصلتش رسايل من 5 دقايق. بعيد الاتصال...`);
+    try { await client.destroy(); } catch (_) {}
     setTimeout(() => client.initialize(), 5000);
   }
-}, 60000);
+}, 30000);
 
 client.on("message", async (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
 
