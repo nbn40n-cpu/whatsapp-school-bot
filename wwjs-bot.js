@@ -89,12 +89,16 @@ client.on("qr", async (qr) => {
   console.log(`\n🔗 رابط QR (افتحه في المتصفح):\n${qrUrl}\n`);
 });
 
-client.on("ready", () => {
+client.on("ready", async () => {
   console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل بالواتساب!`);
-  if (client.info) console.log(`👤 jid=${client.info.me} pushname=${client.info.pushname}`);
+  const info = client.info;
+  if (info) {
+    const jid = typeof info.me === 'object' ? (info.me._serialized || info.me.user + '@' + info.me.server) : info.me;
+    console.log(`👤 jid=${jid} pushname=${info.pushname}`);
+  }
   setInterval(() => {
-    const info = client.info;
-    if (info) console.log(`💓 heartbeat: ${info.pushname || info.me}`);
+    const i = client.info;
+    if (i) console.log(`💓`);
   }, 60000);
 });
 
@@ -112,6 +116,7 @@ client.on("disconnected", (reason) => {
 });
 
 const firstReplies = new Set();
+const seenIds = new Set();
 const GREETING = "وعليكم السلام ورحمة الله وبركاته، أهلاً وسهلاً بك في مدرسة البديع لتعليم السياقة. أنا سوزي، مساعد المدرب سمير. تفضل، كيف أستطيع مساعدتك؟";
 const FAREWELLS = [
   "العفو، أهلاً وسهلاً بك. إذا احتجت أي استفسار آخر نحن جاهزون لخدمتك. نتمنى لك التوفيق.",
@@ -119,14 +124,39 @@ const FAREWELLS = [
 ];
 const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "يتواصل معك"];
 
+function isPersonal(from) { return from && !from.endsWith("@g.us") && from !== "status@broadcast"; }
+
 client.on("message_create", (msg) => {
+  if (msg.fromMe || !isPersonal(msg.from) || !msg.body || !msg.id) return;
+  const id = msg.id._serialized || msg.id.id || msg.id;
+  if (seenIds.has(id)) return;
+  seenIds.add(id);
   lastMsgTime = Date.now();
-  const type = msg.from?.endsWith("@g.us") ? "group" : msg.from?.endsWith("@lid") ? "personal(LID)" : msg.from?.endsWith("@c.us") ? "personal(CUS)" : "other";
-  console.log(`🔔 MC: ${type} fromMe=${msg.fromMe} body=${msg.body?.slice(0,30)}`);
   handleMsg(msg);
 });
 
 let lastMsgTime = Date.now();
+// fallback: يجيب الرسايل من الـ API لو events ما شغلت للشخصي
+setInterval(async () => {
+  if (!client.info || !client.pupPage) return;
+  const idle = Date.now() - lastMsgTime;
+  if (idle < 30000) return;
+  try {
+    const chats = await client.getChats();
+    for (const chat of chats) {
+      if (!isPersonal(chat.id._serialized)) continue;
+      const m = chat.lastMessage;
+      if (m && !m.fromMe && m.body && m.id) {
+        const id = m.id._serialized || m.id.id || m.id;
+        if (seenIds.has(id)) continue;
+        seenIds.add(id);
+        lastMsgTime = Date.now();
+        console.log(`📬 poll: ${id} ${m.body.slice(0,30)}`);
+        handleMsg(m);
+      }
+    }
+  } catch (_) {}
+}, 20000);
 
 async function handleMsg(msg) {
   if (msg.fromMe) return;
