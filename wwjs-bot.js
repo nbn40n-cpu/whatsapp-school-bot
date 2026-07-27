@@ -125,11 +125,35 @@ const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "ي�
 
 function isPersonal(from) { return from && !from.endsWith("@g.us") && from !== "status@broadcast"; }
 
+const seenMsgs = new Set();
+
 client.on("message_create", (msg) => {
   if (msg.fromMe || !isPersonal(msg.from) || !msg.body) return;
+  const key = msg.from + "_" + msg.body + "_" + (msg.timestamp || Date.now());
+  if (seenMsgs.has(key)) return;
+  seenMsgs.add(key);
   lastMsgTime = Date.now();
   handleMsg(msg);
 });
+
+// fallback: يسأل API كل 15 ثانية إذا في رسايل جديدة
+setInterval(async () => {
+  if (!client.info || !client.pupPage) return;
+  try {
+    const chats = await client.getChats();
+    for (const chat of chats) {
+      if (!isPersonal(chat.id._serialized)) continue;
+      const m = chat.lastMessage;
+      if (!m || m.fromMe || !m.body) continue;
+      const key = m.from + "_" + m.body + "_" + (m.timestamp || Date.now());
+      if (seenMsgs.has(key)) continue;
+      seenMsgs.add(key);
+      lastMsgTime = Date.now();
+      console.log(`📬 poll: ${m.body.slice(0,30)}`);
+      handleMsg(m);
+    }
+  } catch (_) {}
+}, 15000);
 
 let lastMsgTime = Date.now();
 async function handleMsg(msg) {
