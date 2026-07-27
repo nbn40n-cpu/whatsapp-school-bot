@@ -8,7 +8,7 @@ export async function getAIResponse(userMessage) {
     const completion = await groq.chat.completions.create({
       model: "llama-3.1-8b-instant",
       messages: [
-        { role: "system", content: `أنت سوزي مساعدة مدرسة البديع لتعليم السياقة. هذه تعليماتك:\n${schoolInfo}\nجاوب بجملة أو جملتين فقط وبسرعة.` },
+        { role: "system", content: `أنت سوزي مساعدة مدرسة البديع لتعليم السياقة.\n${schoolInfo}\nجاوب جملة واحدة فقط بسرعة.` },
         { role: "user", content: userMessage },
       ],
       temperature: 0.2,

@@ -144,7 +144,7 @@ async function handleMsg(msg) {
   // أول رسالة من الطالب
   if (!firstReplies.has(msg.from)) {
     firstReplies.add(msg.from);
-    const isGreeting = /^(السلام عليكم|وعليكم السلام|مرحبا|اهلين|هلا|صباح|مساء|مرحب|hi|hello)\b/i.test(msg.body.trim());
+    const isGreeting = /^(السلام عليكم|وعليكم السلام|مرحبا|اهلين|هلا|صباح|مساء|مرحب|hi|hello)/i.test(msg.body.trim());
     if (isGreeting) {
       await client.sendMessage(msg.from, GREETING);
       console.log(`✅ ترحيب: ${GREETING.slice(0, 50)}...`);
@@ -154,7 +154,7 @@ async function handleMsg(msg) {
   }
 
   // إذا الطالب قال شكراً → رد بنهاية المحادثة
-  if (/^(شكرا|شكراً|تسلم|مشكور|يعطيك العافية|بارك الله فيك|الله يعطيك العافية)\b/i.test(msg.body.trim())) {
+  if (/^(شكرا|شكراً|تسلم|مشكور|يعطيك العافية|بارك الله فيك|الله يعطيك العافية)/i.test(msg.body.trim())) {
     const farewell = FAREWELLS[Math.floor(Math.random() * FAREWELLS.length)];
     await client.sendMessage(msg.from, farewell);
     console.log(`👋 نهاية محادثة: ${farewell.slice(0, 40)}...`);
