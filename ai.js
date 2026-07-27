@@ -6,11 +6,11 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 export async function getAIResponse(userMessage) {
   try {
     const completion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
+      model: "llama3-8b-8192",
       messages: [
         {
           role: "system",
-          content: `${schoolInfo}\n\nتذكر: اسمك سوزي. تكلم بالعامية الفلسطينية. كن مختصراً جداً (جملة أو جملتين).`,
+          content: `${schoolInfo}\n\nاسمك سوزي. تكلم عامية فلسطينية. جاوب بجملة أو جملتين فقط.`,
         },
         {
           role: "user",

@@ -126,8 +126,7 @@ setInterval(async () => {
   }
 }, 30000);
 
-client.on("message", async (msg) => { lastMsgTime = Date.now(); if (!msg.fromMe) console.log(`📨 msg: ${msg.body?.slice(0,40)}`); handleMsg(msg); });
-client.on("message_create", async (msg) => { lastMsgTime = Date.now(); if (!msg.fromMe) console.log(`📨 msg_c: ${msg.body?.slice(0,40)}`); handleMsg(msg); });
+client.on("message_create", (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
 
 async function handleMsg(msg) {
   if (msg.fromMe) return;
