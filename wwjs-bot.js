@@ -109,11 +109,9 @@ client.on("disconnected", (reason) => {
 });
 
 client.on("message_create", async (msg) => {
-  console.log(`📨 raw msg from=${msg.from} type=${msg.type} body=${(msg.body||"").slice(0,60)}`);
   if (msg.fromMe) return;
   if (msg.isGroup || msg.from.endsWith("@g.us")) return;
   if (msg.from === "status@broadcast") return;
-  if (msg.from.endsWith("@lid")) return;
   if (!msg.body || msg.body.trim() === "") return;
 
   if (msg.from === ownerJid) {
