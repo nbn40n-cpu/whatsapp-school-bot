@@ -27,14 +27,23 @@ const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH ||
     ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
     : "/usr/bin/chromium");
 
+function deleteSingletonFiles(dir) {
+  try {
+    if (!fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.name.startsWith("Singleton")) {
+        fs.rmSync(full, { recursive: true, force: true });
+      } else if (entry.isDirectory()) {
+        deleteSingletonFiles(full);
+      }
+    }
+  } catch (_) {}
+}
 if (process.env.CLEAR_SESSION === "true") {
   try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch (_) {}
 } else {
-  try {
-    for (const f of fs.readdirSync(sessionPath)) {
-      if (f.startsWith("Singleton")) fs.rmSync(path.join(sessionPath, f), { recursive: true, force: true });
-    }
-  } catch (_) {}
+  deleteSingletonFiles(sessionPath);
 }
 
 const client = new Client({
