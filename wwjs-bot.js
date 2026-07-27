@@ -89,6 +89,10 @@ client.on("qr", async (qr) => {
 
 client.on("ready", () => {
   console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل بالواتساب!`);
+  setInterval(() => {
+    const info = client.info;
+    if (info) console.log(`💓 heartbeat: connected as ${info.pushname || info.me}`);
+  }, 60000);
 });
 
 client.on("authenticated", () => {
@@ -104,7 +108,8 @@ client.on("disconnected", (reason) => {
   setTimeout(() => client.initialize(), 10000);
 });
 
-client.on("message", async (msg) => {
+client.on("message_create", async (msg) => {
+  console.log(`📨 raw msg from=${msg.from} type=${msg.type} body=${(msg.body||"").slice(0,60)}`);
   if (msg.fromMe) return;
   if (msg.isGroup || msg.from.endsWith("@g.us")) return;
   if (msg.from === "status@broadcast") return;
