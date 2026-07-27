@@ -10,7 +10,7 @@ export async function getAIResponse(userMessage) {
       messages: [
         {
           role: "system",
-          content: `${schoolInfo}\n\nتذكر: تكلم بالعامية الفلسطينية. كن مختصراً جداً (جملة أو جملتين).`,
+          content: `${schoolInfo}\n\nتذكر: اسمك سوزي. تكلم بالعامية الفلسطينية. كن مختصراً جداً (جملة أو جملتين).`,
         },
         {
           role: "user",
