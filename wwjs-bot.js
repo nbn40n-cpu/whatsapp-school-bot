@@ -127,6 +127,8 @@ function isPersonal(from) { return from && !from.endsWith("@g.us") && from !== "
 
 const seenMsgs = new Set();
 
+let lastMsgTime = Date.now();
+
 client.on("message_create", (msg) => {
   if (msg.fromMe || !isPersonal(msg.from) || !msg.body) return;
   const key = msg.from + "_" + msg.body + "_" + (msg.timestamp || Date.now());
@@ -136,11 +138,11 @@ client.on("message_create", (msg) => {
   handleMsg(msg);
 });
 
-// fallback: يسأل API كل 15 ثانية إذا في رسايل جديدة
+// fallback: يسأل API كل 10 ثواني إذا في رسايل جديدة
 setInterval(async () => {
-  if (!client.info || !client.pupPage) return;
+  if (!client.info) return;
   try {
-    const chats = await client.getChats();
+    const chats = await client.getChats().catch(() => []);
     for (const chat of chats) {
       if (!isPersonal(chat.id._serialized)) continue;
       const m = chat.lastMessage;
@@ -152,10 +154,9 @@ setInterval(async () => {
       console.log(`📬 poll: ${m.body.slice(0,30)}`);
       handleMsg(m);
     }
-  } catch (_) {}
-}, 15000);
+  } catch (e) { console.log(`⚠️ poll err: ${e.message?.slice(0,60)}`); }
+}, 10000);
 
-let lastMsgTime = Date.now();
 async function handleMsg(msg) {
   if (msg.fromMe) return;
   if (!msg.from) return;
