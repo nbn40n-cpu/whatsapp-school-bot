@@ -12,7 +12,7 @@ export async function getAIResponse(userMessage) {
         { role: "user", content: userMessage },
       ],
       temperature: 0.3,
-      max_tokens: 250,
+      max_tokens: 400,
     });
 
     return completion.choices[0]?.message?.content || "آسف، ما فهمت سؤالك. ممكن توضيح؟";
