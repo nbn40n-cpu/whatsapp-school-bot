@@ -131,16 +131,13 @@ setInterval(async () => {
       await client.destroy(); 
     } catch (_) {}
     setTimeout(() => {
-      // نضف session كمان
-      const cp = path.join(sessionPath, "session");
-      try { fs.rmSync(cp, { recursive: true, force: true }); } catch (_) {}
       client.initialize();
     }, 5000);
   }
 }, 30000);
 
-client.on("message", (msg) => { console.log(`🔔 msg from=${msg.from?.slice(0,20)}`); lastMsgTime = Date.now(); handleMsg(msg); });
-client.on("message_create", (msg) => { console.log(`🔔 msg_c from=${msg.from?.slice(0,20)}`); lastMsgTime = Date.now(); handleMsg(msg); });
+client.on("message", (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
+client.on("message_create", (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
 
 async function handleMsg(msg) {
   if (msg.fromMe) return;
@@ -276,9 +273,9 @@ async function startBot(retries = 5) {
       return;
     } catch (err) {
       console.error(`❌ محاولة ${i + 1} فشلت:`, err.message);
-      // نضف الـ Chrome profile بالكامل
-      const chromeProfile = path.join(sessionPath, "session");
-      try { fs.rmSync(chromeProfile, { recursive: true, force: true }); } catch (_) {}
+      // فقط ننظف Singleton lock files
+      const cp = path.join(sessionPath, "session");
+      try { if (fs.existsSync(cp)) { for (const e of fs.readdirSync(cp)) { if (e.startsWith("Singleton") || e === "LOCK") fs.rmSync(path.join(cp, e), { recursive: true, force: true }); } } } catch (_) {}
       const wait = 5 * (i + 1);
       console.log(`⏳ ننتظر ${wait} ثواني ونعيد المحاولة...`);
       await new Promise(r => setTimeout(r, wait * 1000));
