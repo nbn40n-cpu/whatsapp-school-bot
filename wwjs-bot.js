@@ -126,7 +126,6 @@ setInterval(async () => {
   }
 }, 30000);
 
-client.on("message_create", (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
 client.on("message", (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
 
 async function handleMsg(msg) {
