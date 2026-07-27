@@ -91,6 +91,11 @@ client.on("qr", async (qr) => {
 
 client.on("ready", () => {
   console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل بالواتساب!`);
+  // check if events work by evaluating the page
+  client.pupPage?.evaluate(() => {
+    console.log("🟢 WhatsApp Web page loaded");
+    return window.WWebVersion || "unknown";
+  }).then(v => console.log(`🟢 WWebVersion: ${v}`)).catch(e => console.log(`🟢 page eval: ${e.message}`));
   setInterval(() => {
     const info = client.info;
     if (info) console.log(`💓 heartbeat: connected as ${info.pushname || info.me}`);
@@ -126,7 +131,8 @@ setInterval(() => {
   if (idle > 120000) console.log(`🔍 idle=${idle}s`);
 }, 60000);
 
-client.on("message_create", (msg) => { lastMsgTime = Date.now(); handleMsg(msg); });
+client.on("message_create", (msg) => { console.log(`🔔 MC: fromMe=${msg.fromMe} from=${msg.from} body=${msg.body?.slice(0,30)}`); lastMsgTime = Date.now(); handleMsg(msg); });
+client.on("message", (msg) => { console.log(`🔔 M: fromMe=${msg.fromMe} from=${msg.from} body=${msg.body?.slice(0,30)}`); lastMsgTime = Date.now(); handleMsg(msg); });
 
 async function handleMsg(msg) {
   if (msg.fromMe) return;
