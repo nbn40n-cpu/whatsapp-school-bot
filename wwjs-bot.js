@@ -17,10 +17,13 @@ const THANKS_PATTERN = /^(شكرا|شكراً|تسلم|مشكور|يعطيك ا�
 
 function fmtPhone(p) { let c = p.replace(/\D/g, ""); if (c.startsWith("0")) c = "972" + c.slice(1); return c; }
 const ownerJid = fmtPhone(PHONE) + "@c.us";
-const sessionPath = process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "wwjs_session") : "wwjs_session";
+const volPath = process.env.RAILWAY_VOLUME_MOUNT_PATH;
+console.log(`📂 VOLUME: ${volPath || "NOT SET"}`);
+const sessionPath = volPath ? path.join(volPath, "wwjs_session") : "wwjs_session";
+console.log(`📂 SESSION: ${sessionPath}`);
 const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium";
 
-if (process.env.FORCE_CLEAR === "true") { try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch (_) {} }
+if (process.env.FORCE_CLEAR === "true") { console.log("🧹 FORCE CLEAR"); try { fs.rmSync(sessionPath, { recursive: true, force: true }); console.log("🧹 Cleared:", sessionPath); } catch (e) { console.log("🧹 Clear error:", e.message); } }
 else {
   // Remove Chromium locks/cache to force clean session reload
   for (const dir of [sessionPath, path.join(sessionPath, "session")]) {
