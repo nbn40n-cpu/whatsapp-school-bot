@@ -1,163 +1,182 @@
 import "dotenv/config";
-import {
-  makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestBaileysVersion,
-} from "@whiskeysockets/baileys";
-import { getAIResponse } from "./ai.js";
+import { makeWASocket, useMultiFileAuthState, DisconnectReason, downloadContentFromMessage } from "@whiskeysockets/baileys";
+import { Boom } from "@hapi/boom";
+import QR from "qrcode";
 import path from "path";
 import fs from "fs";
+import http from "http";
+import { getAIResponse, transcribeAudio } from "./ai.js";
+import pino from "pino";
 
 const SCHOOL_NAME = "مدرسة بديع لتعليم السياقة";
 const PHONE = process.env.SCHOOL_PHONE || "0568444407";
+const GREETING = "وعليكم السلام ورحمة الله وبركاته، أهلاً وسهلاً بك في مدرسة البديع لتعليم السياقة. أنا سوزي، مساعد المدرب سمير. تفضل، كيف أستطيع مساعدتك؟";
+const FAREWELLS = ["العفو، أهلاً وسهلاً بك. إذا احتجت أي استفسار آخر نحن جاهزون لخدمتك. نتمنى لك التوفيق.", "على الرحب والسعة، نتمنى لك التوفيق، وأهلاً وسهلاً بك في مدرسة البديع لتعليم السياقة."];
+const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "يتواصل معك"];
+const GREETING_PATTERN = /^(السلام عليكم|وعليكم السلام|مرحبا|اهلين|هلا|صباح|مساء|مرحب|hi|hello)/i;
+const THANKS_PATTERN = /^(شكرا|شكراً|تسلم|مشكور|يعطيك العافية|بارك الله فيك|الله يعطيك العافية)/i;
 
-function fmtPhone(p) {
-  let c = p.replace(/\D/g, "");
-  if (c.startsWith("0")) c = "972" + c.slice(1);
-  return c;
-}
+function fmtPhone(p) { let c = p.replace(/\D/g, ""); if (c.startsWith("0")) c = "972" + c.slice(1); return c; }
+const ownerJid = fmtPhone(PHONE) + "@s.whatsapp.net";
 
-function getText(msg) {
-  return msg.message?.conversation || msg.message?.extendedTextMessage?.text || null;
-}
+const authPath = process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "baileys_auth") : "./baileys_auth";
+if (process.env.FORCE_CLEAR === "true") { try { fs.rmSync(authPath, { recursive: true, force: true }); } catch (_) {} }
 
-function isGroup(jid) {
-  return jid?.includes("@g.us");
-}
+const seen = new Set();
+const greeted = new Set();
 
-const authPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
-  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "auth_info")
-  : "auth_info";
+function isPersonal(jid) { return jid && !jid.endsWith("@g.us") && jid !== "status@broadcast"; }
+function msgKey(m) { return (m.key?.remoteJid || "") + "_" + (m.message?.conversation || m.message?.extendedTextMessage?.text || "") + "_" + (m.messageTimestamp || 0); }
+function isGreeting(text) { return GREETING_PATTERN.test(text.trim()); }
+function isThanks(text) { return THANKS_PATTERN.test(text.trim()); }
+function isOwner(jid) { return jid === ownerJid; }
 
-function serializeState(state) {
-  const data = { creds: state.creds, keys: {} };
-  for (const [id, key] of state.keys.entries()) {
-    data.keys[id] = key;
-  }
-  return Buffer.from(JSON.stringify(data)).toString("base64");
-}
-
-function ensureDir(p) {
-  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+function bodyFromMsg(msg) {
+  if (msg.message?.conversation) return msg.message.conversation;
+  if (msg.message?.extendedTextMessage?.text) return msg.message.extendedTextMessage.text;
+  if (msg.message?.imageMessage?.caption) return msg.message.imageMessage.caption;
+  return "";
 }
 
 let sock = null;
-let attemptCount = 0;
+const QR_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "qr_code.png") : "qr_code.png";
+let latestQr = null;
 
-async function startBot() {
-  if (sock) {
-    try { sock.removeAllListeners(); sock.end(undefined); } catch (_) {}
-    sock = null;
-    await new Promise((r) => setTimeout(r, 1000));
+async function sendMsg(to, text) {
+  for (let i = 0; i < 3; i++) {
+    try { await sock.sendMessage(to, { text }); return; } catch (e) { if (i < 2) await new Promise(r => setTimeout(r, 2000)); }
+  }
+}
+
+async function handleMsg(msg) {
+  if (!msg.key || msg.key.fromMe || !isPersonal(msg.key.remoteJid) || isOwner(msg.key.remoteJid)) return;
+  const from = msg.key.remoteJid;
+  const isVoice = !!msg.message?.audioMessage;
+  let body = bodyFromMsg(msg);
+  if (!body && !isVoice) return;
+  if (isVoice && msg.message?.audioMessage?.seconds > 120) return;
+
+  console.log(`📩 ${from}: ${isVoice ? "[صوت]" : body}`);
+
+  if (isVoice) {
+    try {
+      const stream = await downloadContentFromMessage(msg.message.audioMessage, "audio");
+      const chunks = [];
+      for await (const chunk of stream) chunks.push(chunk);
+      const buff = Buffer.concat(chunks);
+      const text = await transcribeAudio(buff, "audio/ogg; codecs=opus");
+      if (text) { body = text; console.log(`🎤 ${from}: ${text.slice(0,60)}`); }
+      else { await sendMsg(from, "عذراً، ما فهمت الرسالة الصوتية. جرب تكتب."); return; }
+    } catch (e) { await sendMsg(from, "عذراً، ما فهمت الرسالة الصوتية. جرب تكتب."); return; }
   }
 
-  const savedB64 = process.env.BAILEYS_AUTH_B64;
-  if (savedB64) {
-    try {
-      const data = JSON.parse(Buffer.from(savedB64, "base64").toString());
-      ensureDir(authPath);
-      fs.writeFileSync(path.join(authPath, "creds.json"), JSON.stringify(data.creds, null, 2));
-      console.log("تم استعادة الجلسة من BAILEYS_AUTH_B64");
-    } catch (e) {
-      console.log("فشل استعادة الجلسة - نبدأ من الصفر");
+  if (isThanks(body)) {
+    const f = FAREWELLS[Math.floor(Math.random() * FAREWELLS.length)];
+    await sendMsg(from, f);
+    console.log(`👋 ${f.slice(0,30)}`);
+    return;
+  }
+
+  if (!greeted.has(from)) {
+    greeted.add(from);
+    if (isGreeting(body)) {
+      await sendMsg(from, GREETING);
+      console.log(`✅ ترحيب`);
+      return;
     }
   }
 
-  const { state, saveCreds } = await useMultiFileAuthState(authPath);
-  const { version } = await fetchLatestBaileysVersion();
+  try {
+    const reply = await getAIResponse(body);
+    await sendMsg(from, reply);
+    console.log(`✅ ${reply.slice(0,50)}`);
 
-  const isRegistered = state.creds?.registered;
-  attemptCount++;
+    if (TRANSFER_PHRASES.some(p => reply.includes(p))) {
+      const name = msg.pushName || "طالب";
+      await sendMsg(ownerJid, `📞 تحويل من ${name} (${from}): "${body}"\n---\nرد: ${reply}`);
+      console.log(`📞 تم التحويل`);
+    }
+  } catch (err) {
+    if (err.message?.includes("429")) {
+      await new Promise(r => setTimeout(r, 5000));
+      try { const r = await getAIResponse(body); await sendMsg(from, r); } catch (_) { await sendMsg(from, "عذراً، ضغط عالسيرفر. جرب بعد شوي..."); }
+    } else { console.error(`❌ ${err.message}`); }
+  }
+}
+
+async function startBot() {
+  const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
   sock = makeWASocket({
-    version,
     auth: state,
+    printQRInTerminal: false,
+    logger: pino({ level: "silent" }),
     syncFullHistory: false,
-    markOnlineOnConnect: true,
-    connectTimeoutMs: 120000,
-    keepAliveIntervalMs: 30000,
-    browser: ["Chrome", "122.0.0.0", ""],
+    emitOwnEvents: false,
+    markOnlineOnConnect: false,
   });
 
   sock.ev.on("creds.update", saveCreds);
 
   sock.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
+    if (qr) {
+      console.log("\n═══════════════\nامسح QR:\nالإعدادات > الأجهزة المرتبطة > ربط جهاز\n═══════════════\n");
+      try { console.log(await QR.toString(qr, { type: "terminal", small: true })); } catch (_) {}
+      try { await QR.toFile(QR_PATH, qr, { width: 400, margin: 2 }); latestQr = true; console.log(`حفظ QR: ${QR_PATH}\n`); } catch (_) {}
+      const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(qr)}&size=400`;
+      console.log(`${qrUrl}\n`);
+    }
     if (connection === "open") {
-      attemptCount = 0;
-      console.log(SCHOOL_NAME + " - المساعد متصل بالواتساب!");
-
-      try {
-        const b64 = serializeState(state);
-        console.log("\nBAILEYS_AUTH_B64 (انسخ هذا وأضفه كـ Variable):");
-        console.log(b64);
-        console.log("");
-      } catch (_) {}
+      console.log(`\n✅ ${SCHOOL_NAME} - متصل!`);
+      console.log(`👤 ${sock.user?.id || ""}`);
     }
-
     if (connection === "close") {
-      const r = lastDisconnect?.error?.output?.statusCode;
-      if (r === DisconnectReason.loggedOut) {
-        console.log("تم تسجيل الخروج.");
-        return;
+      const reason = new Boom(lastDisconnect?.error).output.statusCode;
+      if (reason === DisconnectReason.loggedOut || reason === 401) {
+        console.error("❌ تسجيل الخروج، امسح QR مرة ثانية");
+        try { fs.rmSync(authPath, { recursive: true, force: true }); } catch (_) {}
+        await new Promise(r => setTimeout(r, 5000));
+        startBot();
+      } else {
+        console.log(`🔄 قطع. إعادة بعد 5 ثواني...`);
+        await new Promise(r => setTimeout(r, 5000));
+        startBot();
       }
-      if (r === DisconnectReason.badSession) {
-        console.log("جلسة تالفة.");
-        return;
-      }
-      const delay = Math.min(300000, attemptCount * 10000);
-      console.log("قطع (" + (r || "?") + "). محاولة " + attemptCount + ". إعادة بعد " + Math.round(delay / 60) + " دقيقة...");
-      sock = null;
-      setTimeout(startBot, delay);
     }
   });
 
-  if (!isRegistered) {
-    setTimeout(async () => {
-      try {
-        const code = await sock.requestPairingCode(fmtPhone(PHONE));
-        const display = code.match(/.{1,4}/g)?.join("-") || code;
-        console.log("\n" + "=".repeat(40));
-        console.log("كود الاقتران: " + display);
-        console.log("ادخله في واتساب تلفونك الآن");
-        console.log("واتساب > الإعدادات > الأجهزة المرتبطة > ربط جهاز");
-        console.log("=".repeat(40) + "\n");
-        console.log("لقد جرى إرسال الإشعار إلى هاتفك. تحقق من واتساب.");
-      } catch (e) {
-        console.log("محاولة الحصول على كود الاقتران فشلت. سيتم إعادة المحاولة...");
-      }
-    }, 20000);
-  } else {
-    console.log("جلسة محفوظة. تسجيل الدخول...");
-  }
-
-  sock.ev.on("messages.upsert", async ({ messages }) => {
+  sock.ev.on("messages.upsert", async ({ messages, type }) => {
+    if (type !== "notify") return;
     for (const msg of messages) {
-      if (msg.key.fromMe || isGroup(msg.key.remoteJid)) continue;
-      const text = getText(msg);
-      if (!text) continue;
-
-      const sender = msg.key.remoteJid;
-      if (sender === fmtPhone(PHONE) + "@s.whatsapp.net") {
-        console.log("(المالك): " + text);
-        continue;
-      }
-
-      console.log(sender + ": " + text);
-
-      try {
-        await sock.sendPresenceUpdate("composing", sender);
-        const reply = await getAIResponse(text);
-        await sock.sendPresenceUpdate("paused", sender);
-        await sock.sendMessage(sender, { text: reply });
-        console.log(reply.slice(0, 60) + "...");
-      } catch (err) {
-        console.error("خطأ:", err.message);
-      }
+      if (msg.key?.fromMe || !isPersonal(msg.key?.remoteJid) || isOwner(msg.key?.remoteJid)) continue;
+      const key = msgKey(msg);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      handleMsg(msg);
     }
   });
-
-  console.log(SCHOOL_NAME + " - المساعد الذكي يعمل (محاولة " + attemptCount + ")...");
 }
+
+// HTTP server
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  if (req.url === "/qr" || req.url === "/") {
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${SCHOOL_NAME}</title><style>body{background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;color:#fff;font-family:sans-serif}.qr-wrap{background:#fff;border-radius:12px;padding:16px}img{display:block;max-width:90vw;height:auto}</style></head><body><div class="qr-wrap"><img src="/qr-image"></div><h3 id="s">⏳</h3><script>fetch('/qr-status').then(r=>r.json()).then(d=>{document.getElementById('s').textContent=d.connected?'✅ متصل':d.qr?'📱 امسح QR':'⚠️'}).catch(()=>{});setInterval(()=>{fetch('/qr-status').then(r=>r.json()).then(d=>{if(d.connected)document.getElementById('s').textContent='✅ متصل'})},5000)</script></body></html>`);
+  } else if (req.url === "/qr-image") {
+    if (fs.existsSync(QR_PATH)) {
+      res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-cache" }); fs.createReadStream(QR_PATH).pipe(res);
+    } else { res.writeHead(404); res.end("no qr"); }
+  } else if (req.url === "/qr-status") {
+    const connected = sock?.user ? true : false;
+    res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ connected, qr: !!latestQr }));
+  } else if (req.url === "/restart") {
+    res.writeHead(200, { "Content-Type": "text/plain" }); res.end("restarting");
+    setTimeout(() => process.exit(1), 500);
+  } else { res.writeHead(404); res.end(); }
+}).listen(PORT, () => { console.log(`🌐 ${PORT}`); if (process.env.RAILWAY_PUBLIC_DOMAIN) console.log(`🌐 https://${process.env.RAILWAY_PUBLIC_DOMAIN}`); });
+
+process.on("uncaughtException", (e) => console.error("💥", e.message));
+process.on("unhandledRejection", (e) => console.error("💥", e.message));
 
 startBot();
