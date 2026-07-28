@@ -129,13 +129,11 @@ client.on("message", onMsg);
 client.on("message_create", onMsg);
 
 function startPoll() {
-  let failCount = 0;
   setInterval(async () => {
     if (!client.info) return;
     try {
-      const chats = await client.getChats();
-      if (!chats || !Array.isArray(chats)) { failCount++; return; }
-      failCount = 0;
+      const chats = await client.getChats().catch(() => null);
+      if (!chats || !Array.isArray(chats)) return;
       for (const chat of chats) {
         if (!chat || !isPersonal(chat.id?._serialized)) continue;
         const m = chat.lastMessage;
@@ -146,14 +144,7 @@ function startPoll() {
         seen.add(key);
         handleMsg(m);
       }
-    } catch (e) {
-      const em = (e.message||e||"").toString();
-      if (em.includes("detached") || em.includes("Protocol") || failCount > 5) {
-        console.error("⚠️ خطأ في الصفحة، إعادة تشغيل...");
-        process.exit(1);
-      }
-      failCount++;
-    }
+    } catch (_) {}
   }, 8000);
 }
 
