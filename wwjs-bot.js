@@ -161,24 +161,28 @@ client.on("ready", () => {
 
 client.on("authenticated", async () => {
   console.log("🔐 تم تسجيل الدخول");
-  let readyTimer = setTimeout(() => {
-    if (!client.info) {
-      console.error("⏰ ready لم يتم تفعيله بعد 120 ثواني، إعادة تشغيل...");
-      process.exit(1);
-    }
-  }, 120000);
-  client.once("ready", () => clearTimeout(readyTimer));
-  // ارجع لصفحة واتساب الرئيسية
-  try {
-    if (client.pupPage) {
-      const url = await client.pupPage.url().catch(() => "");
-      console.log(`📄 حالياً: ${url.slice(0,60)}`);
-      if (!url.includes("whatsapp.com") && !url.includes("whatsapp")) {
-        console.log(`📄 التنقل إلى واتساب...`);
-        await client.pupPage.goto("https://web.whatsapp.com", { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
+  // تأكد من تحميل صفحة واتساب
+  let tries = 0;
+  while (tries < 3) {
+    try {
+      if (client.pupPage) {
+        const url = await client.pupPage.url().catch(() => "");
+        console.log(`📄 ${url.slice(0,70)}`);
+        if (!url.includes("whatsapp.com")) {
+          await client.pupPage.goto("https://web.whatsapp.com", { timeout: 30000 }).catch(() => {});
+        }
+        break;
+      } else {
+        console.log(`⏳ pupPage غير متاح، انتظار...`);
+        await new Promise(r => setTimeout(r, 5000));
+        tries++;
       }
+    } catch (e) {
+      console.log(`⚠️ ${(e.message||'').slice(0,40)}`);
+      tries++;
+      await new Promise(r => setTimeout(r, 3000));
     }
-  } catch (_) {}
+  }
 });
 client.on("auth_failure", (m) => console.error("❌ فشل الدخول:", m));
 client.on("disconnected", (r) => { console.log(`🔄 قطع (${r})، إعادة...`); setTimeout(() => client.initialize(), 10000); });
