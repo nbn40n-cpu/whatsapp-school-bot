@@ -143,11 +143,11 @@ async function pollChats() {
     const em = (e.message || e || "").toString().toLowerCase();
     console.log(`⚠️ poll: ${em.slice(0,80)}`);
     if (em.includes("detached") || em.includes("protocol") || em.includes("target") || em.includes("closed")) {
-      if (Date.now() - lastMsgTime > 60000) {
-        lastMsgTime = Date.now(); // reset to avoid restart loop
+      if (Date.now() - lastMsgTime > 120000) {
+        lastMsgTime = Date.now();
         try {
           const url = client.pupPage ? await client.pupPage.url().catch(() => "?") : "no-page";
-          console.error(`⚠️ صفحة: ${url}. إعادة تشغيل...`);
+          console.error(`⚠️ page: ${url} - restart`);
         } catch (_) {}
         process.exit(1);
       }
@@ -173,15 +173,22 @@ client.on("ready", async () => {
   const i = client.info;
   if (i) { const j = typeof i.me === 'object' ? (i.me._serialized || i.me.user + '@' + i.me.server) : i.me; console.log(`👤 ${j} ${i.pushname}`); }
 
-  // تحقق من رابط الصفحة
+  // انتظر حتى تظهر الصفحة الرئيسية لواتساب
   try {
     if (client.pupPage) {
       const url = await client.pupPage.url().catch(() => "?");
-      console.log(`📄 صفحة: ${url}`);
+      console.log(`📄 ${url}`);
+      // انتظر ظهور شريط المحادثات
+      await client.pupPage.waitForSelector("div[tabindex='-1']", { timeout: 30000 }).catch(() => {});
+      console.log(`✅ واجهة واتساب جاهزة`);
+      startPoll();
+    } else {
+      console.log(`⚠️ لا يوجد pupPage`);
+      startPoll();
     }
-  } catch (_) {}
-
-  startPoll();
+  } catch (_) {
+    startPoll();
+  }
 });
 
 client.on("authenticated", () => console.log("🔐 تم تسجيل الدخول"));
