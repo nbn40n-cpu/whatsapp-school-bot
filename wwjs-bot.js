@@ -114,7 +114,19 @@ async function handleMsg(msg) {
   }
 }
 
-// ---------- poll for messages (only mechanism) ----------
+// ---------- message_create event (works for group replies, sometimes personal) ----------
+client.on("message_create", async (msg) => {
+  if (!msg || msg.fromMe || !msg.from || !isPersonal(msg.from) || isOwner(msg.from)) return;
+  const isVoice = msg.type === "ptt" || msg.type === "audio";
+  const body = (msg.body || "").trim();
+  if (!body && !isVoice) return;
+  const key = msgKey(msg);
+  if (seen.has(key)) return;
+  seen.add(key);
+  handleMsg(msg);
+});
+
+// ---------- fallback poll every 8s ----------
 setInterval(async () => {
   if (!client.info) return;
   try {
@@ -127,9 +139,18 @@ setInterval(async () => {
       const key = msgKey(m);
       if (seen.has(key)) continue;
       seen.add(key);
+      console.log(`🔁 ${m.from.slice(0,10)}: ${(m.body||"[صوت]").slice(0,40)}`);
       handleMsg(m);
     }
-  } catch (e) { console.log(`⚠️ ${e.message?.slice(0,50)}`); }
+  } catch (e) {
+    const msg = (e.message || "").toLowerCase();
+    if (msg.includes("detached") || msg.includes("frame") || msg.includes("page")) {
+      console.error("⚠️ تم فصل الصفحة، الخروج لإعادة التشغيل...");
+      process.exit(1);
+    } else {
+      console.log(`⚠️ ${e.message?.slice(0,60)}`);
+    }
+  }
 }, 8000);
 
 // ---------- QR ----------
@@ -186,6 +207,6 @@ async function startBot(r = 5) {
       await new Promise(r => setTimeout(r, 5000 * (i + 1)));
     }
   }
-  console.error("❌ فشل"); process.exit(1);
+  console.error("❌ فشل بعد 5 محاولات"); process.exit(1);
 }
 startBot();
