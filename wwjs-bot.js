@@ -23,11 +23,17 @@ const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium";
 if (process.env.FORCE_CLEAR === "true") { try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch (_) {} }
 else { const cp = path.join(sessionPath, "session"); try { if (fs.existsSync(cp)) for (const e of fs.readdirSync(cp)) if (e.startsWith("Singleton") || e === "LOCK") fs.rmSync(path.join(cp, e), { recursive: true, force: true }); } catch (_) {} }
 
+// Clean Chromium cache to force fresh WhatsApp Web load
+const cachePath = path.join(sessionPath, ".puppeteer_cache");
+try { fs.rmSync(cachePath, { recursive: true, force: true }); } catch (_) {}
+const userDataDir = path.join(sessionPath, ".chromium_data");
+try { fs.rmSync(userDataDir, { recursive: true, force: true }); } catch (_) {}
+
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: sessionPath }),
   puppeteer: {
-    executablePath: chromePath, headless: true,
-    args: ["--no-sandbox","--disable-setuid-sandbox","--disable-gpu","--disable-dev-shm-usage","--single-process","--no-zygote"],
+    executablePath: chromePath, headless: true, userDataDir: userDataDir,
+    args: ["--no-sandbox","--disable-setuid-sandbox","--disable-gpu","--disable-dev-shm-usage","--single-process","--no-zygote","--disable-session-crashed-bubble"],
   },
 });
 
@@ -105,8 +111,9 @@ async function handleMsg(msg) {
 client.on("message_create", async (msg) => {
   if (!msg || msg.fromMe || !msg.from || !isPersonal(msg.from)) return;
   const key = msg.id?._serialized || msgKey(msg);
-  if (seen.has(key)) return;
+  if (seen.has(key) || knownMsgs.has(key)) return;
   seen.add(key);
+  knownMsgs.add(key);
   console.log(`📩 ${msg.from}: ${(msg.body || "")?.slice(0,60) || "[media]"}`);
   handleMsg(msg);
 });
@@ -124,34 +131,36 @@ client.on("qr", async (qr) => {
 
 const knownMsgs = new Set();
 
-client.on("ready", () => {
-  console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل!`);
+async function onReady() {
   const i = client.info;
-  if (i) {
-    const j = typeof i.me === 'object' ? (i.me._serialized || i.me.user + '@' + i.me.server) : i.me;
-    console.log(`👤 ${j} ${i.pushname}`);
-    // Poll for new messages every 10 seconds as fallback
-    setInterval(async () => {
-      try {
-        const chats = await client.getChats();
-        for (const chat of chats) {
-          if (!chat.id?._serialized || chat.id._serialized.endsWith("@g.us") || chat.id._serialized === i.wid?._serialized) continue;
-          const msgs = await chat.fetchMessages({ limit: 1 });
-          for (const m of msgs) {
-            const key = m.id?._serialized || msgKey(m);
-            if (!knownMsgs.has(key) && !m.fromMe && m.from && isPersonal(m.from)) {
-              knownMsgs.add(key);
-              if (!seen.has(key) && m.body?.trim()) {
-                seen.add(key);
-                console.log(`📩[poll] ${m.from}: ${m.body.slice(0,60)}`);
-                handleMsg(m);
-              }
-            }
+  if (!i) return;
+  const j = typeof i.me === 'object' ? (i.me._serialized || i.me.user + '@' + i.me.server) : i.me;
+  console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل!`);
+  console.log(`👤 ${j} ${i.pushname}`);
+  // Poll for new messages every 8 seconds
+  setInterval(async () => {
+    try {
+      const chats = await client.getChats();
+      for (const chat of chats) {
+        if (!chat.id?._serialized || chat.id._serialized.endsWith("@g.us") || chat.id._serialized === i.wid?._serialized) continue;
+        const msgs = await chat.fetchMessages({ limit: 1 });
+        for (const m of msgs) {
+          const key = m.id?._serialized || msgKey(m);
+          if (!knownMsgs.has(key) && !m.fromMe && m.from && isPersonal(m.from)) {
+            knownMsgs.add(key);
+            if (!seen.has(key) && m.body?.trim()) { seen.add(key); console.log(`📩 ${m.from}: ${m.body.slice(0,60)}`); handleMsg(m); }
           }
         }
-      } catch (e) { /* poll error */ }
-    }, 10000);
-  }
+      }
+    } catch (_) {}
+  }, 8000);
+}
+
+// Check for client.info readiness periodically
+const readyCheck = setInterval(() => { if (client.info) { clearInterval(readyCheck); onReady(); } }, 2000);
+
+client.on("ready", () => {
+  if (client.info) { clearInterval(readyCheck); onReady(); }
 });
 
 client.on("authenticated", () => {
