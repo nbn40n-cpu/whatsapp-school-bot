@@ -114,7 +114,7 @@ async function handleMsg(msg) {
   }
 }
 
-// ---------- message_create event (works for group replies, sometimes personal) ----------
+// ---------- message_create event + fallback poll ----------
 client.on("message_create", async (msg) => {
   if (!msg || msg.fromMe || !msg.from || !isPersonal(msg.from) || isOwner(msg.from)) return;
   const isVoice = msg.type === "ptt" || msg.type === "audio";
@@ -126,32 +126,31 @@ client.on("message_create", async (msg) => {
   handleMsg(msg);
 });
 
-// ---------- fallback poll every 8s ----------
-setInterval(async () => {
-  if (!client.info) return;
-  try {
-    const chats = await client.getChats();
-    for (const chat of chats) {
-      if (!isPersonal(chat.id._serialized)) continue;
-      const m = chat.lastMessage;
-      if (!m || m.fromMe) continue;
-      if (!m.body && m.type !== "ptt" && m.type !== "audio") continue;
-      const key = msgKey(m);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      console.log(`🔁 ${m.from.slice(0,10)}: ${(m.body||"[صوت]").slice(0,40)}`);
-      handleMsg(m);
+function startPoll() {
+  setInterval(async () => {
+    if (!client.info) return;
+    try {
+      const chats = await client.getChats();
+      if (!chats || !Array.isArray(chats)) return;
+      for (const chat of chats) {
+        if (!chat || !isPersonal(chat.id?._serialized)) continue;
+        const m = chat.lastMessage;
+        if (!m || m.fromMe) continue;
+        if (!m.body && m.type !== "ptt" && m.type !== "audio") continue;
+        const key = msgKey(m);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        handleMsg(m);
+      }
+    } catch (e) {
+      const errMsg = (e.message || e || "").toString().toLowerCase();
+      if (errMsg.includes("detached") || errMsg.includes("protocol")) {
+        console.error("⚠️ تم فصل الصفحة، الخروج...");
+        process.exit(1);
+      }
     }
-  } catch (e) {
-    const msg = (e.message || "").toLowerCase();
-    if (msg.includes("detached") || msg.includes("frame") || msg.includes("page")) {
-      console.error("⚠️ تم فصل الصفحة، الخروج لإعادة التشغيل...");
-      process.exit(1);
-    } else {
-      console.log(`⚠️ ${e.message?.slice(0,60)}`);
-    }
-  }
-}, 8000);
+  }, 10000);
+}
 
 // ---------- QR ----------
 const qrPath = process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "qr_code.png") : "qr_code.png";
@@ -168,6 +167,7 @@ client.on("ready", () => {
   console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل!`);
   const i = client.info;
   if (i) { const j = typeof i.me === 'object' ? (i.me._serialized || i.me.user + '@' + i.me.server) : i.me; console.log(`👤 ${j} ${i.pushname}`); }
+  startPoll();
 });
 
 client.on("authenticated", () => console.log("🔐 تم تسجيل الدخول"));
