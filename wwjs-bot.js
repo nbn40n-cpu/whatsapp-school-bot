@@ -167,6 +167,13 @@ client.on("ready", () => {
   console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل!`);
   const i = client.info;
   if (i) { const j = typeof i.me === 'object' ? (i.me._serialized || i.me.user + '@' + i.me.server) : i.me; console.log(`👤 ${j} ${i.pushname}`); }
+
+  // حافظ على اتصال الصفحة
+  setInterval(async () => {
+    if (!client.pupPage) return;
+    try { await client.pupPage.evaluate(() => true); } catch (_) {}
+  }, 30000);
+
   startPoll();
 });
 
