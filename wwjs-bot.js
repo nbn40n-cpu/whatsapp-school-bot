@@ -36,14 +36,12 @@ const client = new Client({
   },
 });
 
-// ---------- state ----------
-const seen = new Set();        // message dedup keys
-const greeted = new Set();     // users who got greeting
+const seen = new Set();
+const greeted = new Set();
+let lastMsgTime = Date.now();
 
-// ---------- helpers ----------
 function isPersonal(from) { return from && !from.endsWith("@g.us") && from !== "status@broadcast"; }
 function msgKey(m) { return (m.from || "") + "_" + (m.body || "") + "_" + (m.timestamp || 0); }
-
 function isGreeting(text) { return GREETING_PATTERN.test(text.trim()); }
 function isThanks(text) { return THANKS_PATTERN.test(text.trim()); }
 function isOwner(from) { return from === ownerJid; }
@@ -54,7 +52,6 @@ async function sendMsg(to, text) {
   }
 }
 
-// ---------- process message ----------
 async function handleMsg(msg) {
   if (msg.fromMe || !msg.from || !isPersonal(msg.from) || isOwner(msg.from)) return;
   const isVoice = msg.type === "ptt" || msg.type === "audio";
@@ -63,7 +60,6 @@ async function handleMsg(msg) {
 
   console.log(`📩 ${msg.from}: ${isVoice ? "[صوت]" : body}`);
 
-  // تعامل مع الصوت
   if (isVoice) {
     try {
       const media = await msg.downloadMedia();
@@ -76,7 +72,6 @@ async function handleMsg(msg) {
     } catch (e) { await sendMsg(msg.from, "عذراً، ما فهمت الرسالة الصوتية. جرب تكتب."); return; }
   }
 
-  // شكراً
   if (isThanks(body)) {
     const f = FAREWELLS[Math.floor(Math.random() * FAREWELLS.length)];
     await sendMsg(msg.from, f);
@@ -84,7 +79,6 @@ async function handleMsg(msg) {
     return;
   }
 
-  // أول رسالة
   if (!greeted.has(msg.from)) {
     greeted.add(msg.from);
     if (isGreeting(body)) {
@@ -94,7 +88,6 @@ async function handleMsg(msg) {
     }
   }
 
-  // AI
   try {
     const reply = await getAIResponse(body);
     await sendMsg(msg.from, reply);
@@ -114,7 +107,7 @@ async function handleMsg(msg) {
   }
 }
 
-// ---------- message events + fallback poll ----------
+// ---------- message events ----------
 function onMsg(msg) {
   if (!msg || msg.fromMe || !msg.from || !isPersonal(msg.from) || isOwner(msg.from)) return;
   const isVoice = msg.type === "ptt" || msg.type === "audio";
@@ -123,30 +116,41 @@ function onMsg(msg) {
   const key = msgKey(msg);
   if (seen.has(key)) return;
   seen.add(key);
+  lastMsgTime = Date.now();
   handleMsg(msg);
 }
 client.on("message", onMsg);
 client.on("message_create", onMsg);
 
-function startPoll() {
-  setInterval(async () => {
-    if (!client.info) return;
-    try {
-      const chats = await client.getChats().catch(() => null);
-      if (!chats || !Array.isArray(chats)) return;
-      for (const chat of chats) {
-        if (!chat || !isPersonal(chat.id?._serialized)) continue;
-        const m = chat.lastMessage;
-        if (!m || m.fromMe) continue;
-        if (!m.body && m.type !== "ptt" && m.type !== "audio") continue;
-        const key = msgKey(m);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        handleMsg(m);
+// ---------- poll + health check ----------
+async function pollChats() {
+  if (!client.info) return;
+  try {
+    const chats = await client.getChats();
+    if (!chats || !Array.isArray(chats)) return;
+    for (const chat of chats) {
+      if (!chat || !isPersonal(chat.id?._serialized)) continue;
+      const m = chat.lastMessage;
+      if (!m || m.fromMe) continue;
+      if (!m.body && m.type !== "ptt" && m.type !== "audio") continue;
+      const key = msgKey(m);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      lastMsgTime = Date.now();
+      handleMsg(m);
+    }
+  } catch (e) {
+    const em = (e.message || e || "").toString();
+    if (em.includes("detached") || em.includes("Protocol") || em.includes("target")) {
+      if (Date.now() - lastMsgTime > 90000) {
+        console.error(`⚠️ الصفحة منفصلة ولم يتم استلام رسايل منذ ${Math.round((Date.now()-lastMsgTime)/1000)}ث. إعادة...`);
+        process.exit(1);
       }
-    } catch (_) {}
-  }, 8000);
+    }
+  }
 }
+
+function startPoll() { setInterval(pollChats, 6000); }
 
 // ---------- QR ----------
 const qrPath = process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "qr_code.png") : "qr_code.png";
