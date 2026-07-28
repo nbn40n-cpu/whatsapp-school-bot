@@ -166,8 +166,9 @@ client.on("authenticated", async () => {
   while (tries < 3) {
     try {
       if (client.pupPage) {
-        const url = await client.pupPage.url().catch(() => "");
-        console.log(`📄 ${url.slice(0,70)}`);
+        let url = "";
+        try { url = client.pupPage.url(); } catch (_) {}
+        console.log(`📄 ${(url||"?صفحة غير معروفة").slice(0,70)}`);
         if (!url.includes("whatsapp.com")) {
           await client.pupPage.goto("https://web.whatsapp.com", { timeout: 30000 }).catch(() => {});
         }
