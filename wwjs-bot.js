@@ -155,7 +155,7 @@ async function pollChats() {
   }
 }
 
-function startPoll() { setInterval(pollChats, 6000); }
+function startPoll() { setTimeout(() => setInterval(pollChats, 6000), 10000); }
 
 // ---------- QR ----------
 const qrPath = process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "qr_code.png") : "qr_code.png";
@@ -168,10 +168,18 @@ client.on("qr", async (qr) => {
   console.log(`https://quickchart.io/qr?text=${encodeURIComponent(qr)}&size=400\n`);
 });
 
-client.on("ready", () => {
+client.on("ready", async () => {
   console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل!`);
   const i = client.info;
   if (i) { const j = typeof i.me === 'object' ? (i.me._serialized || i.me.user + '@' + i.me.server) : i.me; console.log(`👤 ${j} ${i.pushname}`); }
+
+  // تحقق من رابط الصفحة
+  try {
+    if (client.pupPage) {
+      const url = await client.pupPage.url().catch(() => "?");
+      console.log(`📄 صفحة: ${url}`);
+    }
+  } catch (_) {}
 
   startPoll();
 });
