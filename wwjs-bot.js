@@ -140,13 +140,18 @@ async function pollChats() {
       handleMsg(m);
     }
   } catch (e) {
-    const em = (e.message || e || "").toString();
-      if (em.includes("detached") || em.includes("Protocol") || em.includes("target")) {
-        if (Date.now() - lastMsgTime > 300000) {
-          console.error(`⚠️ الصفحة منفصلة ولم يتم استلام رسايل منذ ${Math.round((Date.now()-lastMsgTime)/1000)}ث. إعادة...`);
-          process.exit(1);
-        }
+    const em = (e.message || e || "").toString().toLowerCase();
+    console.log(`⚠️ poll: ${em.slice(0,80)}`);
+    if (em.includes("detached") || em.includes("protocol") || em.includes("target") || em.includes("closed")) {
+      if (Date.now() - lastMsgTime > 60000) {
+        lastMsgTime = Date.now(); // reset to avoid restart loop
+        try {
+          const url = client.pupPage ? await client.pupPage.url().catch(() => "?") : "no-page";
+          console.error(`⚠️ صفحة: ${url}. إعادة تشغيل...`);
+        } catch (_) {}
+        process.exit(1);
       }
+    }
   }
 }
 
