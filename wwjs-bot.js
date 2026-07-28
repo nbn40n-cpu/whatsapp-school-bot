@@ -111,6 +111,7 @@ async function handleMsg(msg) {
 }
 
 // ---------- message events ----------
+client.on("message", async (msg) => { if (msg && !msg.fromMe && msg.from && isPersonal(msg.from) && msg.body?.trim()) { const k = msg.id?._serialized || msgKey(msg); if (!seen.has(k) && !knownMsgs.has(k)) { seen.add(k); knownMsgs.add(k); console.log(`📩 ${msg.from}: ${(msg.body || "")?.slice(0,60)}`); handleMsg(msg); } } });
 client.on("message_create", async (msg) => {
   if (!msg || msg.fromMe || !msg.from || !isPersonal(msg.from)) return;
   const key = msg.id?._serialized || msgKey(msg);
@@ -140,9 +141,11 @@ async function onReady() {
   const j = typeof i.me === 'object' ? (i.me._serialized || i.me.user + '@' + i.me.server) : i.me;
   console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل!`);
   console.log(`👤 ${j} ${i.pushname}`);
-  // Poll for new messages every 8 seconds
+
+  // Poll for new messages every 8 seconds via page.evaluate (bypasses events)
   setInterval(async () => {
     try {
+      // Try whatsapp-web.js API first
       const chats = await client.getChats();
       for (const chat of chats) {
         if (!chat.id?._serialized || chat.id._serialized.endsWith("@g.us") || chat.id._serialized === i.wid?._serialized) continue;
@@ -153,6 +156,28 @@ async function onReady() {
             knownMsgs.add(key);
             if (!seen.has(key) && m.body?.trim()) { seen.add(key); console.log(`📩 ${m.from}: ${m.body.slice(0,60)}`); handleMsg(m); }
           }
+        }
+      }
+    } catch (_) {}
+    // Try direct Puppeteer page access as fallback
+    try {
+      const pg = client.pupPage;
+      if (pg && !pg.isClosed()) {
+        const raw = await pg.evaluate(() => {
+          const chats = document.querySelectorAll('[data-testid="chat-list"] [data-testid="cell-frame-container"]');
+          const results = [];
+          for (const c of chats) {
+            const unread = c.querySelector('[data-testid="icon-unread-count"]');
+            if (unread) {
+              const title = c.querySelector('[data-testid="conversation-info-header"]')?.textContent || '';
+              const msg = c.querySelector('[data-testid="last-msg"]')?.textContent || '';
+              results.push({ title, msg });
+            }
+          }
+          return results;
+        });
+        for (const r of raw) {
+          if (r.msg) { console.log(`📩[page] ${r.title}: ${r.msg.slice(0,60)}`); }
         }
       }
     } catch (_) {}
