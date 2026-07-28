@@ -104,26 +104,10 @@ async function handleMsg(msg) {
 // ---------- message events ----------
 client.on("message_create", async (msg) => {
   if (!msg || msg.fromMe || !msg.from || !isPersonal(msg.from)) return;
-  console.log(`📩 ${msg.from}: ${msg.body?.slice(0,60) || "[media]"}`);
-  const isVoice = msg.type === "ptt" || msg.type === "audio";
-  let body = (msg.body || "").trim();
-  if (!body && !isVoice) return;
-  const key = msgKey(msg);
+  const key = msg.id?._serialized || msgKey(msg);
   if (seen.has(key)) return;
   seen.add(key);
-  handleMsg(msg);
-});
-
-// Fallback: also listen to message event
-client.on("message", async (msg) => {
-  if (!msg || msg.fromMe || !msg.from || !isPersonal(msg.from)) return;
-  console.log(`📩📩 ${msg.from}: ${msg.body?.slice(0,60) || "[media]"}`);
-  const isVoice = msg.type === "ptt" || msg.type === "audio";
-  let body = (msg.body || "").trim();
-  if (!body && !isVoice) return;
-  const key = msgKey(msg);
-  if (seen.has(key)) return;
-  seen.add(key);
+  console.log(`📩 ${msg.from}: ${(msg.body || "")?.slice(0,60) || "[media]"}`);
   handleMsg(msg);
 });
 
@@ -142,6 +126,10 @@ client.on("ready", () => {
   console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل!`);
   const i = client.info;
   if (i) { const j = typeof i.me === 'object' ? (i.me._serialized || i.me.user + '@' + i.me.server) : i.me; console.log(`👤 ${j} ${i.pushname}`); }
+  // Test connection by checking own number
+  setTimeout(async () => {
+    try { const p = await client.isRegisteredUser(i.wid?._serialized || "972568444407@c.us"); console.log(`📡 Connection: ${p ? "OK" : "ISSUE"}`); } catch (e) { console.log(`📡 Connection issue: ${e.message}`); }
+  }, 5000);
 });
 
 client.on("authenticated", () => console.log("🔐 تم تسجيل الدخول"));
