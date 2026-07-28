@@ -122,17 +122,41 @@ client.on("qr", async (qr) => {
   console.log(`https://quickchart.io/qr?text=${encodeURIComponent(qr)}&size=400\n`);
 });
 
+const knownMsgs = new Set();
+
 client.on("ready", () => {
   console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل!`);
   const i = client.info;
-  if (i) { const j = typeof i.me === 'object' ? (i.me._serialized || i.me.user + '@' + i.me.server) : i.me; console.log(`👤 ${j} ${i.pushname}`); }
-  // Test connection by checking own number
-  setTimeout(async () => {
-    try { const p = await client.isRegisteredUser(i.wid?._serialized || "972568444407@c.us"); console.log(`📡 Connection: ${p ? "OK" : "ISSUE"}`); } catch (e) { console.log(`📡 Connection issue: ${e.message}`); }
-  }, 5000);
+  if (i) {
+    const j = typeof i.me === 'object' ? (i.me._serialized || i.me.user + '@' + i.me.server) : i.me;
+    console.log(`👤 ${j} ${i.pushname}`);
+    // Poll for new messages every 10 seconds as fallback
+    setInterval(async () => {
+      try {
+        const chats = await client.getChats();
+        for (const chat of chats) {
+          if (!chat.id?._serialized || chat.id._serialized.endsWith("@g.us") || chat.id._serialized === i.wid?._serialized) continue;
+          const msgs = await chat.fetchMessages({ limit: 1 });
+          for (const m of msgs) {
+            const key = m.id?._serialized || msgKey(m);
+            if (!knownMsgs.has(key) && !m.fromMe && m.from && isPersonal(m.from)) {
+              knownMsgs.add(key);
+              if (!seen.has(key) && m.body?.trim()) {
+                seen.add(key);
+                console.log(`📩[poll] ${m.from}: ${m.body.slice(0,60)}`);
+                handleMsg(m);
+              }
+            }
+          }
+        }
+      } catch (e) { /* poll error */ }
+    }, 10000);
+  }
 });
 
-client.on("authenticated", () => console.log("🔐 تم تسجيل الدخول"));
+client.on("authenticated", () => {
+  console.log("🔐 تم تسجيل الدخول");
+});
 client.on("auth_failure", (m) => console.error("❌ فشل الدخول:", m));
 client.on("disconnected", (r) => { console.log(`🔄 قطع (${r})، إعادة...`); setTimeout(() => client.initialize(), 5000); });
 
