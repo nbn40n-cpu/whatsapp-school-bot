@@ -102,10 +102,24 @@ async function handleMsg(msg) {
 }
 
 // ---------- message events ----------
+client.on("message_create", async (msg) => {
+  if (!msg || msg.fromMe || !msg.from || !isPersonal(msg.from)) return;
+  console.log(`📩 ${msg.from}: ${msg.body?.slice(0,60) || "[media]"}`);
+  const isVoice = msg.type === "ptt" || msg.type === "audio";
+  let body = (msg.body || "").trim();
+  if (!body && !isVoice) return;
+  const key = msgKey(msg);
+  if (seen.has(key)) return;
+  seen.add(key);
+  handleMsg(msg);
+});
+
+// Fallback: also listen to message event
 client.on("message", async (msg) => {
   if (!msg || msg.fromMe || !msg.from || !isPersonal(msg.from)) return;
+  console.log(`📩📩 ${msg.from}: ${msg.body?.slice(0,60) || "[media]"}`);
   const isVoice = msg.type === "ptt" || msg.type === "audio";
-  const body = (msg.body || "").trim();
+  let body = (msg.body || "").trim();
   if (!body && !isVoice) return;
   const key = msgKey(msg);
   if (seen.has(key)) return;
