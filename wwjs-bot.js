@@ -171,7 +171,14 @@ process.on("unhandledRejection", (e) => console.error("💥", e.message));
 
 async function startBot(r = 5) {
   for (let i = 0; i < r; i++) {
-    try { console.log(`\n🚀 محاولة ${i+1}/${r}`); await client.initialize(); return; }
+    try {
+      console.log(`\n🚀 محاولة ${i+1}/${r}`);
+      await Promise.race([
+        client.initialize(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("timeout 120s")), 120000)),
+      ]);
+      return;
+    }
     catch (e) {
       console.error(`❌ ${e.message}`);
       const cp = path.join(sessionPath, "session");
