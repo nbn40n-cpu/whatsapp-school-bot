@@ -114,8 +114,8 @@ async function handleMsg(msg) {
   }
 }
 
-// ---------- message_create event + fallback poll ----------
-client.on("message_create", async (msg) => {
+// ---------- message events + fallback poll ----------
+function onMsg(msg) {
   if (!msg || msg.fromMe || !msg.from || !isPersonal(msg.from) || isOwner(msg.from)) return;
   const isVoice = msg.type === "ptt" || msg.type === "audio";
   const body = (msg.body || "").trim();
@@ -124,14 +124,18 @@ client.on("message_create", async (msg) => {
   if (seen.has(key)) return;
   seen.add(key);
   handleMsg(msg);
-});
+}
+client.on("message", onMsg);
+client.on("message_create", onMsg);
 
 function startPoll() {
+  let failCount = 0;
   setInterval(async () => {
     if (!client.info) return;
     try {
-      const chats = await client.getChats().catch(() => []);
-      if (!chats || !Array.isArray(chats)) return;
+      const chats = await client.getChats();
+      if (!chats || !Array.isArray(chats)) { failCount++; return; }
+      failCount = 0;
       for (const chat of chats) {
         if (!chat || !isPersonal(chat.id?._serialized)) continue;
         const m = chat.lastMessage;
@@ -142,8 +146,15 @@ function startPoll() {
         seen.add(key);
         handleMsg(m);
       }
-    } catch (_) {}
-  }, 10000);
+    } catch (e) {
+      const em = (e.message||e||"").toString();
+      if (em.includes("detached") || em.includes("Protocol") || failCount > 5) {
+        console.error("⚠️ خطأ في الصفحة، إعادة تشغيل...");
+        process.exit(1);
+      }
+      failCount++;
+    }
+  }, 8000);
 }
 
 // ---------- QR ----------
