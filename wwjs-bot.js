@@ -1,7 +1,7 @@
 import "dotenv/config";
 import pkg from "whatsapp-web.js";
 const { Client, LocalAuth } = pkg;
-import { getAIResponse } from "./ai.js";
+import { getAIResponse, transcribeAudio } from "./ai.js";
 import QR from "qrcode";
 import path from "path";
 import fs from "fs";
@@ -56,11 +56,25 @@ async function sendMsg(to, text) {
 
 // ---------- process message ----------
 async function handleMsg(msg) {
-  if (msg.fromMe || !msg.from || !msg.body || !isPersonal(msg.from) || isOwner(msg.from) || msg.isGroup || msg.from.endsWith("@g.us")) return;
-  const body = msg.body.trim();
-  if (!body) return;
+  if (msg.fromMe || !msg.from || !isPersonal(msg.from) || isOwner(msg.from)) return;
+  const isVoice = msg.type === "ptt" || msg.type === "audio";
+  let body = (msg.body || "").trim();
+  if (!body && !isVoice) return;
 
-  console.log(`📩 ${msg.from}: ${body}`);
+  console.log(`📩 ${msg.from}: ${isVoice ? "[صوت]" : body}`);
+
+  // تعامل مع الصوت
+  if (isVoice) {
+    try {
+      const media = await msg.downloadMedia();
+      if (media && media.data) {
+        const buff = Buffer.from(media.data, "base64");
+        const text = await transcribeAudio(buff, media.mimetype);
+        if (text) { body = text; console.log(`🎤 ${msg.from}: ${text.slice(0,60)}`); }
+        else { await sendMsg(msg.from, "عذراً، ما فهمت الرسالة الصوتية. جرب تكتب."); return; }
+      } else { await sendMsg(msg.from, "عذراً، ما فهمت الرسالة الصوتية. جرب تكتب."); return; }
+    } catch (e) { await sendMsg(msg.from, "عذراً، ما فهمت الرسالة الصوتية. جرب تكتب."); return; }
+  }
 
   // شكراً
   if (isThanks(body)) {
@@ -108,7 +122,8 @@ setInterval(async () => {
     for (const chat of chats) {
       if (!isPersonal(chat.id._serialized)) continue;
       const m = chat.lastMessage;
-      if (!m || m.fromMe || !m.body) continue;
+      if (!m || m.fromMe) continue;
+      if (!m.body && m.type !== "ptt" && m.type !== "audio") continue;
       const key = msgKey(m);
       if (seen.has(key)) continue;
       seen.add(key);

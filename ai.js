@@ -20,3 +20,20 @@ export async function getAIResponse(userMessage) {
     return "أعتذر، يرجى مراسلة المدرب سمير بعد المغرب أو مراجعة المدرسة.";
   }
 }
+
+export async function transcribeAudio(audioBuffer, mimeType) {
+  try {
+    const blob = new Blob([audioBuffer], { type: mimeType });
+    const file = new File([blob], "voice.ogg", { type: mimeType });
+    const transcript = await groq.audio.transcriptions.create({
+      file,
+      model: "whisper-large-v3",
+      language: "ar",
+      response_format: "text",
+    });
+    return transcript || "";
+  } catch (error) {
+    console.error("Transcribe Error:", error.message);
+    return "";
+  }
+}
