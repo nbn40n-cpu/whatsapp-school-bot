@@ -36,7 +36,7 @@ const client = new Client({
   authStrategy: new LocalAuth({ dataPath: sessionPath }),
   puppeteer: {
     executablePath: chromePath, headless: true,
-    args: ["--no-sandbox","--disable-setuid-sandbox","--disable-gpu","--disable-dev-shm-usage","--single-process","--no-zygote"],
+    args: ["--no-sandbox","--disable-setuid-sandbox","--disable-gpu","--disable-dev-shm-usage","--disable-blink-features=AutomationControlled"],
   },
 });
 
