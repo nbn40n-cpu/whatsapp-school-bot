@@ -21,19 +21,19 @@ const sessionPath = process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.en
 const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium";
 
 if (process.env.FORCE_CLEAR === "true") { try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch (_) {} }
-else { const cp = path.join(sessionPath, "session"); try { if (fs.existsSync(cp)) for (const e of fs.readdirSync(cp)) if (e.startsWith("Singleton") || e === "LOCK") fs.rmSync(path.join(cp, e), { recursive: true, force: true }); } catch (_) {} }
+else {
+  // Remove Chromium locks/cache to force clean session reload
+  for (const dir of [sessionPath, path.join(sessionPath, "session")]) {
+    try { if (fs.existsSync(dir)) for (const e of fs.readdirSync(dir)) if (e.startsWith("Singleton") || e.startsWith("SINGLETON") || e === "LOCK" || e === "lockfile" || e === "chrome_debug.log" || e.endsWith(".tmp") || e.startsWith("Crashpad") || e.startsWith("Crash Reports")) fs.rmSync(path.join(dir, e), { recursive: true, force: true }); } catch (_) {}
+  }
+}
 
 // Clean Chromium cache to force fresh WhatsApp Web load
-const cachePath = path.join(sessionPath, ".puppeteer_cache");
-try { fs.rmSync(cachePath, { recursive: true, force: true }); } catch (_) {}
-const userDataDir = path.join(sessionPath, ".chromium_data");
-try { fs.rmSync(userDataDir, { recursive: true, force: true }); } catch (_) {}
-
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: sessionPath }),
   puppeteer: {
-    executablePath: chromePath, headless: true, userDataDir: userDataDir,
-    args: ["--no-sandbox","--disable-setuid-sandbox","--disable-gpu","--disable-dev-shm-usage","--single-process","--no-zygote","--disable-session-crashed-bubble"],
+    executablePath: chromePath, headless: true,
+    args: ["--no-sandbox","--disable-setuid-sandbox","--disable-gpu","--disable-dev-shm-usage","--single-process","--no-zygote"],
   },
 });
 
