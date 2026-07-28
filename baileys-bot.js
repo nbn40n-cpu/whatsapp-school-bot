@@ -133,14 +133,11 @@ async function startBot() {
     if (connection === "close") {
       const reason = new Boom(lastDisconnect?.error).output.statusCode;
       if (reason === DisconnectReason.loggedOut || reason === 401) {
-        console.error("❌ تسجيل الخروج، امسح QR مرة ثانية");
+        console.error("❌ تسجيل الخروج. الخروج لإعادة التشغيل...");
         try { fs.rmSync(authPath, { recursive: true, force: true }); } catch (_) {}
-        await new Promise(r => setTimeout(r, 5000));
-        startBot();
+        process.exit(1);
       } else {
-        console.log(`🔄 قطع. إعادة بعد 5 ثواني...`);
-        await new Promise(r => setTimeout(r, 5000));
-        startBot();
+        console.log(`🔄 قطع (${reason}). الاتصال التلقائي...`);
       }
     }
   });
