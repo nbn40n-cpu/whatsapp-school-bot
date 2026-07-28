@@ -131,13 +131,14 @@ async function startBot() {
       console.log(`👤 ${sock.user?.id || ""}`);
     }
     if (connection === "close") {
-      const reason = new Boom(lastDisconnect?.error).output.statusCode;
-      if (reason === DisconnectReason.loggedOut || reason === 401) {
-        console.error("❌ تسجيل الخروج. الخروج لإعادة التشغيل...");
+      const statusCode = lastDisconnect?.error ? new Boom(lastDisconnect.error).output.statusCode : 0;
+      const errMsg = lastDisconnect?.error?.message || "";
+      if (statusCode === DisconnectReason.loggedOut || statusCode === 401 || errMsg.includes("logged")) {
+        console.error("❌ تسجيل الخروج. إعادة التشغيل...");
         try { fs.rmSync(authPath, { recursive: true, force: true }); } catch (_) {}
         process.exit(1);
       } else {
-        console.log(`🔄 قطع (${reason}). الاتصال التلقائي...`);
+        console.log(`🔄 قطع (${statusCode}: ${errMsg.slice(0,60)}). انتظار الاتصال التلقائي...`);
       }
     }
   });
