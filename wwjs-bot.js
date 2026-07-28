@@ -216,18 +216,15 @@ http.createServer((req, res) => {
 process.on("uncaughtException", (e) => console.error("💥", e.message));
 process.on("unhandledRejection", (e) => console.error("💥", e.message));
 
-function initTimeout(ms) {
-  return Promise.race([
-    client.initialize(),
-    new Promise((_, rej) => setTimeout(() => rej(new Error(`timeout ${ms}ms`)), ms))
-  ]);
-}
-
 async function startBot(r = 5) {
   for (let i = 0; i < r; i++) {
     try {
       console.log(`\n🚀 محاولة ${i+1}/${r}`);
-      await initTimeout(120000); return;
+      await new Promise((res, rej) => {
+        const tm = setTimeout(() => { console.error("⏰ timeout!"); rej(new Error("timeout")); }, 120000);
+        client.initialize().then(() => { clearTimeout(tm); res(); }).catch(e => { clearTimeout(tm); rej(e); });
+      });
+      return;
     } catch (e) {
       console.error(`❌ ${e.message}`);
       try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch (_) {}
