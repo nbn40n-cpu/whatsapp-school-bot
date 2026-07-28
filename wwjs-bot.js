@@ -130,7 +130,7 @@ function startPoll() {
   setInterval(async () => {
     if (!client.info) return;
     try {
-      const chats = await client.getChats();
+      const chats = await client.getChats().catch(() => []);
       if (!chats || !Array.isArray(chats)) return;
       for (const chat of chats) {
         if (!chat || !isPersonal(chat.id?._serialized)) continue;
@@ -142,13 +142,7 @@ function startPoll() {
         seen.add(key);
         handleMsg(m);
       }
-    } catch (e) {
-      const errMsg = (e.message || e || "").toString().toLowerCase();
-      if (errMsg.includes("detached") || errMsg.includes("protocol")) {
-        console.error("⚠️ تم فصل الصفحة، الخروج...");
-        process.exit(1);
-      }
-    }
+    } catch (_) {}
   }, 10000);
 }
 
