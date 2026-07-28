@@ -24,8 +24,12 @@ function cleanLockFiles() {
   const cp = path.join(sessionPath, "session");
   try { if (fs.existsSync(cp)) for (const e of fs.readdirSync(cp)) if (e.startsWith("Singleton") || e === "LOCK") fs.rmSync(path.join(cp, e), { recursive: true, force: true }); } catch (_) {}
 }
-if (process.env.CLEAR_SESSION === "true") { try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch (_) {} }
-else cleanLockFiles();
+if (process.env.CLEAR_SESSION === "true" || process.env.FORCE_CLEAR === "true") {
+  console.log("🧹 مسح الجلسة...");
+  try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch (_) {}
+} else {
+  cleanLockFiles();
+}
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: sessionPath }),
@@ -169,8 +173,11 @@ client.on("authenticated", async () => {
         let url = "";
         try { url = client.pupPage.url(); } catch (_) {}
         console.log(`📄 ${(url||"?صفحة غير معروفة").slice(0,70)}`);
-        if (!url.includes("whatsapp.com")) {
-          await client.pupPage.goto("https://web.whatsapp.com", { timeout: 30000 }).catch(() => {});
+        if (url.includes("whatsapp.com")) {
+          // انتظر ready
+          break;
+        } else {
+          await client.pupPage.goto("https://web.whatsapp.com", { timeout: 60000 }).catch(() => {});
         }
         break;
       } else {
