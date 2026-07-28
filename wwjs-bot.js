@@ -141,12 +141,12 @@ async function pollChats() {
     }
   } catch (e) {
     const em = (e.message || e || "").toString();
-    if (em.includes("detached") || em.includes("Protocol") || em.includes("target")) {
-      if (Date.now() - lastMsgTime > 90000) {
-        console.error(`⚠️ الصفحة منفصلة ولم يتم استلام رسايل منذ ${Math.round((Date.now()-lastMsgTime)/1000)}ث. إعادة...`);
-        process.exit(1);
+      if (em.includes("detached") || em.includes("Protocol") || em.includes("target")) {
+        if (Date.now() - lastMsgTime > 300000) {
+          console.error(`⚠️ الصفحة منفصلة ولم يتم استلام رسايل منذ ${Math.round((Date.now()-lastMsgTime)/1000)}ث. إعادة...`);
+          process.exit(1);
+        }
       }
-    }
   }
 }
 
@@ -167,12 +167,6 @@ client.on("ready", () => {
   console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل!`);
   const i = client.info;
   if (i) { const j = typeof i.me === 'object' ? (i.me._serialized || i.me.user + '@' + i.me.server) : i.me; console.log(`👤 ${j} ${i.pushname}`); }
-
-  // حافظ على اتصال الصفحة
-  setInterval(async () => {
-    if (!client.pupPage) return;
-    try { await client.pupPage.evaluate(() => true); } catch (_) {}
-  }, 30000);
 
   startPoll();
 });
