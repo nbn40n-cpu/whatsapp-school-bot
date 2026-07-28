@@ -110,10 +110,11 @@ async function startBot() {
   sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
-    logger: pino({ level: "silent" }),
+    logger: pino({ level: "error" }),
     syncFullHistory: false,
     emitOwnEvents: false,
     markOnlineOnConnect: false,
+    version: [2, 3000, 1015949824],
   });
 
   sock.ev.on("creds.update", saveCreds);
