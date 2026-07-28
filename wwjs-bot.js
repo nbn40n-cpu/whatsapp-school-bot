@@ -47,7 +47,7 @@ async function sendMsg(to, text) {
 }
 
 async function handleMsg(msg) {
-  if (msg.fromMe || !msg.from || !isPersonal(msg.from) || isOwner(msg.from)) return;
+  if (msg.fromMe || !msg.from || !isPersonal(msg.from)) return;
   const isVoice = msg.type === "ptt" || msg.type === "audio";
   let body = (msg.body || "").trim();
   if (!body && !isVoice) return;
