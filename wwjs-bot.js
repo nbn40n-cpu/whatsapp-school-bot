@@ -9,310 +9,161 @@ import http from "http";
 
 const SCHOOL_NAME = "مدرسة بديع لتعليم السياقة";
 const PHONE = process.env.SCHOOL_PHONE || "0568444407";
+const GREETING = "وعليكم السلام ورحمة الله وبركاته، أهلاً وسهلاً بك في مدرسة البديع لتعليم السياقة. أنا سوزي، مساعد المدرب سمير. تفضل، كيف أستطيع مساعدتك؟";
+const FAREWELLS = ["العفو، أهلاً وسهلاً بك. إذا احتجت أي استفسار آخر نحن جاهزون لخدمتك. نتمنى لك التوفيق.", "على الرحب والسعة، نتمنى لك التوفيق، وأهلاً وسهلاً بك في مدرسة البديع لتعليم السياقة."];
+const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "يتواصل معك"];
+const GREETING_PATTERN = /^(السلام عليكم|وعليكم السلام|مرحبا|اهلين|هلا|صباح|مساء|مرحب|hi|hello)/i;
+const THANKS_PATTERN = /^(شكرا|شكراً|تسلم|مشكور|يعطيك العافية|بارك الله فيك|الله يعطيك العافية)/i;
 
-function fmtPhone(p) {
-  let c = p.replace(/\D/g, "");
-  if (c.startsWith("0")) c = "972" + c.slice(1);
-  return c;
-}
-
+function fmtPhone(p) { let c = p.replace(/\D/g, ""); if (c.startsWith("0")) c = "972" + c.slice(1); return c; }
 const ownerJid = fmtPhone(PHONE) + "@c.us";
+const sessionPath = process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "wwjs_session") : "wwjs_session";
+const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH || (process.platform === "win32" ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" : "/usr/bin/chromium");
 
-const sessionPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
-  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "wwjs_session")
-  : "wwjs_session";
-
-const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH ||
-  (process.platform === "win32"
-    ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
-    : "/usr/bin/chromium");
-
-if (process.env.CLEAR_SESSION === "true") {
-  try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch (_) {}
-} else {
-  // Delete Chrome profile files but keep WhatsApp auth (Session/ dir)
-  const chromeProfile = path.join(sessionPath, "session");
-  try {
-    if (fs.existsSync(chromeProfile)) {
-      for (const entry of fs.readdirSync(chromeProfile)) {
-        const full = path.join(chromeProfile, entry);
-        if (entry.startsWith("Singleton") || entry === "LOCK") {
-          fs.rmSync(full, { recursive: true, force: true });
-        }
-      }
-    }
-  } catch (_) {}
+function cleanLockFiles() {
+  const cp = path.join(sessionPath, "session");
+  try { if (fs.existsSync(cp)) for (const e of fs.readdirSync(cp)) if (e.startsWith("Singleton") || e === "LOCK") fs.rmSync(path.join(cp, e), { recursive: true, force: true }); } catch (_) {}
 }
+if (process.env.CLEAR_SESSION === "true") { try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch (_) {} }
+else cleanLockFiles();
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: sessionPath }),
   puppeteer: {
-    executablePath: chromePath,
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-gpu",
-      "--disable-dev-shm-usage",
-      "--single-process",
-      "--no-zygote",
-      "--disable-features=LockProfile",
-      "--disable-software-rasterizer",
-      "--disable-blink-features=AutomationControlled",
-    ],
+    executablePath: chromePath, headless: true,
+    args: ["--no-sandbox","--disable-setuid-sandbox","--disable-gpu","--disable-dev-shm-usage","--single-process","--no-zygote","--disable-features=LockProfile","--disable-software-rasterizer","--disable-blink-features=AutomationControlled"],
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
   },
 });
 
-const qrPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
-  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "qr_code.png")
-  : "qr_code.png";
+// ---------- state ----------
+const seen = new Set();        // message dedup keys
+const greeted = new Set();     // users who got greeting
 
-client.on("qr", async (qr) => {
-  console.log(`\n══════════════════════════════════`);
-  console.log(`امسح QR كود من واتساب تلفونك:`);
-  console.log(`الإعدادات > الأجهزة المرتبطة > ربط جهاز`);
-  console.log(`══════════════════════════════════\n`);
-
-  try {
-    const qrTerminal = await QR.toString(qr, { type: "terminal", small: true });
-    console.log(qrTerminal);
-  } catch (_) {}
-
-  try {
-    await QR.toFile(qrPath, qr, { width: 400, margin: 2 });
-    latestQrPath = qrPath;
-    console.log(`تم حفظ QR كصورة: ${qrPath}\n`);
-  } catch (_) {}
-
-  const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(qr)}&size=400`;
-  console.log(`\n🔗 رابط QR (افتحه في المتصفح):\n${qrUrl}\n`);
-});
-
-client.on("ready", async () => {
-  console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل بالواتساب!`);
-  const info = client.info;
-  if (info) {
-    const jid = typeof info.me === 'object' ? (info.me._serialized || info.me.user + '@' + info.me.server) : info.me;
-    console.log(`👤 jid=${jid} pushname=${info.pushname}`);
-  }
-  setInterval(() => {
-    const i = client.info;
-    if (i) console.log(`💓`);
-}, 120000);
-});
-
-client.on("authenticated", () => {
-  console.log(`\n🔐 تم تسجيل الدخول بنجاح!`);
-});
-
-client.on("auth_failure", (msg) => {
-  console.error(`\n❌ فشل تسجيل الدخول:`, msg);
-});
-
-client.on("disconnected", (reason) => {
-  console.log(`\n🔄 قطع (${reason}). إعادة بعد 10 ثواني...`);
-  setTimeout(() => client.initialize(), 10000);
-});
-
-const firstReplies = new Set();
-const GREETING = "وعليكم السلام ورحمة الله وبركاته، أهلاً وسهلاً بك في مدرسة البديع لتعليم السياقة. أنا سوزي، مساعد المدرب سمير. تفضل، كيف أستطيع مساعدتك؟";
-const FAREWELLS = [
-  "العفو، أهلاً وسهلاً بك. إذا احتجت أي استفسار آخر نحن جاهزون لخدمتك. نتمنى لك التوفيق.",
-  "على الرحب والسعة، نتمنى لك التوفيق، وأهلاً وسهلاً بك في مدرسة البديع لتعليم السياقة.",
-];
-const TRANSFER_PHRASES = ["للمدرب سمير", "المدرب سمير", "يتواصل معك"];
-
+// ---------- helpers ----------
 function isPersonal(from) { return from && !from.endsWith("@g.us") && from !== "status@broadcast"; }
+function msgKey(m) { return (m.from || "") + "_" + (m.body || "") + "_" + (m.timestamp || 0); }
 
-const seenMsgs = new Set();
+function isGreeting(text) { return GREETING_PATTERN.test(text.trim()); }
+function isThanks(text) { return THANKS_PATTERN.test(text.trim()); }
+function isOwner(from) { return from === ownerJid; }
 
-let lastMsgTime = Date.now();
+async function sendMsg(to, text) {
+  for (let i = 0; i < 3; i++) {
+    try { await client.sendMessage(to, text); return; } catch (e) { if (i < 2) await new Promise(r => setTimeout(r, 2000)); }
+  }
+}
 
-client.on("message_create", (msg) => {
-  if (msg.fromMe || !isPersonal(msg.from) || !msg.body) return;
-  const key = msg.from + "_" + msg.body + "_" + (msg.timestamp || Date.now());
-  if (seenMsgs.has(key)) return;
-  seenMsgs.add(key);
-  lastMsgTime = Date.now();
-  handleMsg(msg);
-});
+// ---------- process message ----------
+async function handleMsg(msg) {
+  if (msg.fromMe || !msg.from || !msg.body || !isPersonal(msg.from) || isOwner(msg.from) || msg.isGroup || msg.from.endsWith("@g.us")) return;
+  const body = msg.body.trim();
+  if (!body) return;
 
-// fallback: يسأل API كل 10 ثواني إذا في رسايل جديدة
+  console.log(`📩 ${msg.from}: ${body}`);
+
+  // شكراً
+  if (isThanks(body)) {
+    const f = FAREWELLS[Math.floor(Math.random() * FAREWELLS.length)];
+    await sendMsg(msg.from, f);
+    console.log(`👋 ${f.slice(0,30)}`);
+    return;
+  }
+
+  // أول رسالة
+  if (!greeted.has(msg.from)) {
+    greeted.add(msg.from);
+    if (isGreeting(body)) {
+      await sendMsg(msg.from, GREETING);
+      console.log(`✅ ترحيب`);
+      return;
+    }
+  }
+
+  // AI
+  try {
+    const reply = await getAIResponse(body);
+    await sendMsg(msg.from, reply);
+    console.log(`✅ ${reply.slice(0,50)}`);
+
+    if (TRANSFER_PHRASES.some(p => reply.includes(p))) {
+      let name = "طالب";
+      try { const c = await msg.getContact(); name = c.pushname || c.name || "طالب"; } catch (_) {}
+      await sendMsg(ownerJid, `📞 تحويل من ${name} (${msg.from}): "${body}"\n---\nرد: ${reply}`);
+      console.log(`📞 تم التحويل`);
+    }
+  } catch (err) {
+    if (err.message?.includes("429")) {
+      await new Promise(r => setTimeout(r, 5000));
+      try { const r = await getAIResponse(body); await sendMsg(msg.from, r); } catch (_) { await sendMsg(msg.from, "عذراً، ضغط عالسيرفر. جرب بعد شوي..."); }
+    } else { console.error(`❌ ${err.message}`); }
+  }
+}
+
+// ---------- poll for messages (only mechanism) ----------
 setInterval(async () => {
   if (!client.info) return;
   try {
-    const chats = await client.getChats().catch(() => []);
+    const chats = await client.getChats();
     for (const chat of chats) {
       if (!isPersonal(chat.id._serialized)) continue;
       const m = chat.lastMessage;
       if (!m || m.fromMe || !m.body) continue;
-      const key = m.from + "_" + m.body + "_" + (m.timestamp || Date.now());
-      if (seenMsgs.has(key)) continue;
-      seenMsgs.add(key);
-      lastMsgTime = Date.now();
-      console.log(`📬 poll: ${m.body.slice(0,30)}`);
+      const key = msgKey(m);
+      if (seen.has(key)) continue;
+      seen.add(key);
       handleMsg(m);
     }
-  } catch (e) { console.log(`⚠️ poll err: ${e.message?.slice(0,60)}`); }
-}, 10000);
+  } catch (e) { console.log(`⚠️ ${e.message?.slice(0,50)}`); }
+}, 8000);
 
-async function handleMsg(msg) {
-  if (msg.fromMe) return;
-  if (!msg.from) return;
-  if (msg.isGroup || msg.from.endsWith("@g.us")) return;
-  if (msg.from === "status@broadcast") return;
-  if (!msg.body || msg.body.trim() === "") return;
-
-  if (msg.from === ownerJid) {
-    console.log(`🔇 (المالك): ${msg.body}`);
-    return;
-  }
-
-  console.log(`📩 ${msg.from}: ${msg.body}`);
-
-  // أول رسالة من الطالب
-  if (!firstReplies.has(msg.from)) {
-    firstReplies.add(msg.from);
-    const isGreeting = /^(السلام عليكم|وعليكم السلام|مرحبا|اهلين|هلا|صباح|مساء|مرحب|hi|hello)/i.test(msg.body.trim());
-    if (isGreeting) {
-      await client.sendMessage(msg.from, GREETING);
-      console.log(`✅ ترحيب: ${GREETING.slice(0, 50)}...`);
-      return;
-    }
-    // إذا مش تحية، يكمل للـ AI
-  }
-
-  // إذا الطالب قال شكراً → رد بنهاية المحادثة
-  if (/^(شكرا|شكراً|تسلم|مشكور|يعطيك العافية|بارك الله فيك|الله يعطيك العافية)/i.test(msg.body.trim())) {
-    const farewell = FAREWELLS[Math.floor(Math.random() * FAREWELLS.length)];
-    await client.sendMessage(msg.from, farewell);
-    console.log(`👋 نهاية محادثة: ${farewell.slice(0, 40)}...`);
-    return;
-  }
-
-  async function sendWithRetry(text, retries = 3) {
-    for (let i = 0; i < retries; i++) {
-      try {
-        await client.sendMessage(msg.from, text);
-        return;
-      } catch (e) {
-        console.log(`⚠️ send fail (${i+1}/${retries}): ${e.message?.slice(0,50)}`);
-        if (i < retries - 1) await new Promise(r => setTimeout(r, 2000 * (i + 1)));
-      }
-    }
-  }
-
-  try {
-    const reply = await getAIResponse(msg.body);
-    await sendWithRetry(reply);
-    console.log(`✅ ${reply.slice(0, 60)}...`);
-
-    // إذا الذكاء ما عرف يجاوب → يحول للمالك
-    if (TRANSFER_PHRASES.some(p => reply.includes(p))) {
-      let name = "طالب";
-      try { const c = await msg.getContact(); name = c.pushname || c.name || "طالب"; } catch (_) {}
-      const forwardMsg = `📞 تحويل من ${name} (${msg.from}):\n"${msg.body}"\n---\nرد البوت: ${reply}`;
-      await sendWithRetry(forwardMsg);
-      console.log(`📞 تم تحويل المحادثة للمالك`);
-    }
-  } catch (err) {
-    if (err.message && err.message.includes("429")) {
-      console.error("⚠️ Rate limit, waiting 5s...");
-      await new Promise(r => setTimeout(r, 5000));
-      try {
-        const reply = await getAIResponse(msg.body);
-        await sendWithRetry(reply);
-        console.log(`✅ ${reply.slice(0, 60)}...`);
-      } catch (_) {
-        await client.sendMessage(msg.from, "عذراً، صار ضغط عالسيرفر. جرب بعد شوي...").catch(()=>{});
-      }
-    } else {
-      console.error("❌ خطأ:", err.message);
-    }
-  }
-}
-
-const PORT = process.env.PORT || 3000;
+// ---------- QR ----------
+const qrPath = process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "qr_code.png") : "qr_code.png";
 let latestQrPath = null;
 
+client.on("qr", async (qr) => {
+  console.log("\n═══════════════\nامسح QR:\nالإعدادات > الأجهزة المرتبطة > ربط جهاز\n═══════════════\n");
+  try { console.log(await QR.toString(qr, { type: "terminal", small: true })); } catch (_) {}
+  try { await QR.toFile(qrPath, qr, { width: 400, margin: 2 }); latestQrPath = qrPath; console.log(`حفظ QR: ${qrPath}\n`); } catch (_) {}
+  console.log(`https://quickchart.io/qr?text=${encodeURIComponent(qr)}&size=400\n`);
+});
+
+client.on("ready", () => {
+  console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل!`);
+  const i = client.info;
+  if (i) { const j = typeof i.me === 'object' ? (i.me._serialized || i.me.user + '@' + i.me.server) : i.me; console.log(`👤 ${j} ${i.pushname}`); }
+});
+
+client.on("authenticated", () => console.log("🔐 تم تسجيل الدخول"));
+client.on("auth_failure", (m) => console.error("❌ فشل الدخول:", m));
+client.on("disconnected", (r) => { console.log(`🔄 قطع (${r})، إعادة...`); setTimeout(() => client.initialize(), 10000); });
+
+// ---------- HTTP ----------
+const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
   if (req.url === "/qr" || req.url === "/") {
     res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(`<!DOCTYPE html><html><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>QR Code - ${SCHOOL_NAME}</title>
-<style>body{background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;color:#fff;font-family:sans-serif}
-.qr-wrap{background:#fff;border-radius:12px;padding:16px}
-img{display:block;max-width:90vw;height:auto;image-rendering:pixelated}
-h3{text-align:center;margin-top:20px;color:#0f0}
-h4{text-align:center;color:#ff0;margin:5px 0}
-p{color:#aaa;font-size:14px;text-align:center}
-</style>
-</head><body>
-<div class="qr-wrap"><img src="/qr-image" alt="QR Code"></div>
-<h3 id="status">⏳ انتظر...</h3>
-<p>${SCHOOL_NAME} - المساعد</p>
-<script>
-const img=document.querySelector('img');
-fetch('/qr-status').then(r=>r.json()).then(d=>{
-  if(d.connected){document.getElementById('status').textContent='✅ متصل!';document.getElementById('status').style.color='#0f0'}
-  else if(d.qr){document.getElementById('status').textContent='📱 امسح QR';img.src='/qr-image?'+Date.now();setTimeout(()=>img.src='/qr-image?'+Date.now(),5000)}
-  else{document.getElementById('status').textContent='⚠️ لا يوجد QR بعد...'}
-});
-setInterval(()=>{img.src='/qr-image?'+Date.now()},5000);
-setInterval(()=>{fetch('/qr-status').then(r=>r.json()).then(d=>{
-  if(d.connected)document.getElementById('status').textContent='✅ متصل!'
-})},5000);
-</script>
-</body></html>`);
-  } else if (req.url === "/qr-image") {
-    if (latestQrPath && fs.existsSync(latestQrPath)) {
-      res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-cache" });
-      fs.createReadStream(latestQrPath).pipe(res);
-    } else {
-      res.writeHead(200, { "Content-Type": "text/plain" });
-      res.end("No QR yet");
-    }
+    res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${SCHOOL_NAME}</title><style>body{background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;color:#fff;font-family:sans-serif}.qr-wrap{background:#fff;border-radius:12px;padding:16px}img{display:block;max-width:90vw;height:auto}</style></head><body><div class="qr-wrap"><img src="/qr-image"></div><h3 id="s">⏳</h3><script>fetch('/qr-status').then(r=>r.json()).then(d=>{document.getElementById('s').textContent=d.connected?'✅ متصل':d.qr?'📱 امسح QR':'⚠️'}).catch(()=>{});setInterval(()=>{fetch('/qr-status').then(r=>r.json()).then(d=>{if(d.connected)document.getElementById('s').textContent='✅ متصل'})},5000)</script></body></html>`);
+  } else if (req.url === "/qr-image" && latestQrPath && fs.existsSync(latestQrPath)) {
+    res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-cache" }); fs.createReadStream(latestQrPath).pipe(res);
   } else if (req.url === "/qr-status") {
-    const connected = client.info ? true : false;
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ connected, qr: !!latestQrPath }));
-  } else {
-    res.writeHead(404); res.end();
-  }
-}).listen(PORT, () => {
-  console.log(`🌐 Web UI: http://localhost:${PORT}`);
-  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
-    console.log(`🌐 Public: https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
-  }
-});
+    res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ connected: !!client.info, qr: !!latestQrPath }));
+  } else { res.writeHead(404); res.end(); }
+}).listen(PORT, () => { console.log(`🌐 ${PORT}`); if (process.env.RAILWAY_PUBLIC_DOMAIN) console.log(`🌐 https://${process.env.RAILWAY_PUBLIC_DOMAIN}`); });
 
-process.on("uncaughtException", (err) => {
-  console.error("💥 uncaughtException:", err.message);
-});
-process.on("unhandledRejection", (err) => {
-  console.error("💥 unhandledRejection:", err.message);
-});
+process.on("uncaughtException", (e) => console.error("💥", e.message));
+process.on("unhandledRejection", (e) => console.error("💥", e.message));
 
-async function startBot(retries = 5) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      console.log(`\n🚀 ${SCHOOL_NAME} - المساعد يعمل... (محاولة ${i + 1}/${retries})`);
-      await client.initialize();
-      return;
-    } catch (err) {
-      console.error(`❌ محاولة ${i + 1} فشلت:`, err.message);
-      // فقط ننظف Singleton lock files
+async function startBot(r = 5) {
+  for (let i = 0; i < r; i++) {
+    try { console.log(`\n🚀 محاولة ${i+1}/${r}`); await client.initialize(); return; }
+    catch (e) {
+      console.error(`❌ ${e.message}`);
       const cp = path.join(sessionPath, "session");
-      try { if (fs.existsSync(cp)) { for (const e of fs.readdirSync(cp)) { if (e.startsWith("Singleton") || e === "LOCK") fs.rmSync(path.join(cp, e), { recursive: true, force: true }); } } } catch (_) {}
-      const wait = 5 * (i + 1);
-      console.log(`⏳ ننتظر ${wait} ثواني ونعيد المحاولة...`);
-      await new Promise(r => setTimeout(r, wait * 1000));
+      try { if (fs.existsSync(cp)) for (const f of fs.readdirSync(cp)) if (f.startsWith("Singleton") || f === "LOCK") fs.rmSync(path.join(cp, f), { recursive: true, force: true }); } catch (_) {}
+      await new Promise(r => setTimeout(r, 5000 * (i + 1)));
     }
   }
-  console.error(`❌ فشل تشغيل البوت بعد ${retries} محاولات`);
-  process.exit(1);
+  console.error("❌ فشل"); process.exit(1);
 }
-
 startBot();
