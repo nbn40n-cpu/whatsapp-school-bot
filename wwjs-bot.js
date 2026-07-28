@@ -38,7 +38,6 @@ const client = new Client({
 
 const seen = new Set();
 const greeted = new Set();
-let lastMsgTime = Date.now();
 
 function isPersonal(from) { return from && !from.endsWith("@g.us") && from !== "status@broadcast"; }
 function msgKey(m) { return (m.from || "") + "_" + (m.body || "") + "_" + (m.timestamp || 0); }
@@ -116,17 +115,16 @@ function onMsg(msg) {
   const key = msgKey(msg);
   if (seen.has(key)) return;
   seen.add(key);
-  lastMsgTime = Date.now();
   handleMsg(msg);
 }
 client.on("message", onMsg);
 client.on("message_create", onMsg);
 
-// ---------- poll + health check ----------
+// ---------- poll (best effort) ----------
 async function pollChats() {
   if (!client.info) return;
   try {
-    const chats = await client.getChats();
+    const chats = await client.getChats().catch(() => null);
     if (!chats || !Array.isArray(chats)) return;
     for (const chat of chats) {
       if (!chat || !isPersonal(chat.id?._serialized)) continue;
@@ -136,26 +134,12 @@ async function pollChats() {
       const key = msgKey(m);
       if (seen.has(key)) continue;
       seen.add(key);
-      lastMsgTime = Date.now();
       handleMsg(m);
     }
-  } catch (e) {
-    const em = (e.message || e || "").toString().toLowerCase();
-    console.log(`⚠️ poll: ${em.slice(0,80)}`);
-    if (em.includes("detached") || em.includes("protocol") || em.includes("target") || em.includes("closed")) {
-      if (Date.now() - lastMsgTime > 120000) {
-        lastMsgTime = Date.now();
-        try {
-          const url = client.pupPage ? await client.pupPage.url().catch(() => "?") : "no-page";
-          console.error(`⚠️ page: ${url} - restart`);
-        } catch (_) {}
-        process.exit(1);
-      }
-    }
-  }
+  } catch (_) {}
 }
 
-function startPoll() { setTimeout(() => setInterval(pollChats, 6000), 10000); }
+function startPoll() { setInterval(pollChats, 8000); }
 
 // ---------- QR ----------
 const qrPath = process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "qr_code.png") : "qr_code.png";
@@ -168,27 +152,11 @@ client.on("qr", async (qr) => {
   console.log(`https://quickchart.io/qr?text=${encodeURIComponent(qr)}&size=400\n`);
 });
 
-client.on("ready", async () => {
+client.on("ready", () => {
   console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل!`);
   const i = client.info;
   if (i) { const j = typeof i.me === 'object' ? (i.me._serialized || i.me.user + '@' + i.me.server) : i.me; console.log(`👤 ${j} ${i.pushname}`); }
-
-  // انتظر حتى تظهر الصفحة الرئيسية لواتساب
-  try {
-    if (client.pupPage) {
-      const url = await client.pupPage.url().catch(() => "?");
-      console.log(`📄 ${url}`);
-      // انتظر ظهور شريط المحادثات
-      await client.pupPage.waitForSelector("div[tabindex='-1']", { timeout: 30000 }).catch(() => {});
-      console.log(`✅ واجهة واتساب جاهزة`);
-      startPoll();
-    } else {
-      console.log(`⚠️ لا يوجد pupPage`);
-      startPoll();
-    }
-  } catch (_) {
-    startPoll();
-  }
+  startPoll();
 });
 
 client.on("authenticated", () => console.log("🔐 تم تسجيل الدخول"));
@@ -205,6 +173,9 @@ http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-cache" }); fs.createReadStream(latestQrPath).pipe(res);
   } else if (req.url === "/qr-status") {
     res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ connected: !!client.info, qr: !!latestQrPath }));
+  } else if (req.url === "/restart") {
+    res.writeHead(200, { "Content-Type": "text/plain" }); res.end("restarting");
+    setTimeout(() => process.exit(1), 500);
   } else { res.writeHead(404); res.end(); }
 }).listen(PORT, () => { console.log(`🌐 ${PORT}`); if (process.env.RAILWAY_PUBLIC_DOMAIN) console.log(`🌐 https://${process.env.RAILWAY_PUBLIC_DOMAIN}`); });
 
