@@ -84,25 +84,39 @@ async function start() {
     if (qr && !state.creds.registered && !pairingCodeRequested) {
       pairingCodeRequested = true;
       const phoneNumber = fmtPhone(PHONE);
+      process.stdout.write(`\n⏳ انتظر 3 ثواني لطلب كود الاقتران...\r`);
+      // Delay to ensure socket is ready
+      await new Promise(r => setTimeout(r, 3000));
       process.stdout.write(`\n⏳ طلب كود الاقتران للرقم ${phoneNumber}...\r`);
-      try {
-        let code = await sock.requestPairingCode(phoneNumber);
-        if (code) {
-          code = code.match(/.{1,4}/g)?.join("-") || code;
-          console.log("\n" + "═".repeat(42));
-          console.log("  كود الاقتران الخاص بك:");
-          console.log(`\n       ${code}\n`);
-          console.log("  الخطوات:");
-          console.log(`  1. افتح واتساب > الإعدادات > الأجهزة المرتبطة`);
-          console.log(`  2. اضغط "ربط جهاز"`);
-          console.log(`  3. اضغط ⋮ أو "الربط برقم الهاتف"`);
-          console.log(`  4. أدخل: ${code}`);
-          console.log("═".repeat(42) + "\n");
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          let code = await sock.requestPairingCode(phoneNumber);
+          if (code) {
+            code = code.match(/.{1,4}/g)?.join("-") || code;
+            console.log("\n" + "═".repeat(42));
+            console.log("  🔑 كود الاقتران الخاص بك:");
+            console.log(`\n       ${code}\n`);
+            console.log("  📋 الخطوات:");
+            console.log(`  1. افتح واتساب ← الإعدادات ← الأجهزة المرتبطة`);
+            console.log(`  2. اضغط "ربط جهاز"`);
+            console.log(`  3. اضغط ⋮ (النقاط الثلاث) ← "الربط برقم الهاتف"`);
+            console.log(`  4. أدخل الكود: ${code}`);
+            console.log("═".repeat(42) + "\n");
+            break;
+          }
+        } catch (e) {
+          console.error(`\n❌ محاولة ${attempt + 1}: ${e.message}`);
+          if (attempt < 2) {
+            console.log("   إعادة المحاولة بعد 5 ثواني...");
+            await new Promise(r => setTimeout(r, 5000));
+          } else {
+            console.log("\n💡 حلول:");
+            console.log("   1. تأكد من أن الرقم 972568444407 مسجل في واتساب");
+            console.log("   2. جرب تشغيل البوت مرة أخرى");
+            console.log("   3. إذا استمرت المشكلة، احذف مجلد baileys_auth وأعد التشغيل");
+            pairingCodeRequested = false;
+          }
         }
-      } catch (e) {
-        console.error(`\n❌ فشل طلب الكود: ${e.message}`);
-        console.log("   تأكد من الرقم وأعد التشغيل");
-        pairingCodeRequested = false;
       }
     }
 
