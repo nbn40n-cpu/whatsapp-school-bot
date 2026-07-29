@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { makeWASocket, useMultiFileAuthState, DisconnectReason } from "@whiskeysockets/baileys";
+import { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
 import { getAIResponse } from "./ai.js";
 import path from "path";
 import fs from "fs";
@@ -64,30 +64,58 @@ async function handleMsg(sock, msg, jid) {
 
 async function start() {
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
+  let pairingCodeRequested = false;
+
+  const { version } = await fetchLatestBaileysVersion();
+
   const sock = makeWASocket({
-    printQRInTerminal: true,
+    version,
     auth: state,
+    printQRInTerminal: false,
     syncFullHistory: false,
-    linkPreviewImageThumbnailWidth: 100,
+    markOnlineOnConnect: false,
+    generateHighQualityLinkPreview: false,
+    browser: ["Termux", "", ""],
   });
 
   sock.ev.on("creds.update", saveCreds);
 
-  sock.ev.on("connection.update", ({ connection, lastDisconnect, qr }) => {
-    if (qr) {
-      console.log("\n═══════════════════════════════════════");
-      console.log("امسح QR كود من تلفون المدرسة");
-      console.log("الإعدادات > الأجهزة المرتبطة > ربط جهاز");
-      console.log("═══════════════════════════════════════\n");
+  sock.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
+    if (qr && !state.creds.registered && !pairingCodeRequested) {
+      pairingCodeRequested = true;
+      const phoneNumber = fmtPhone(PHONE);
+      process.stdout.write(`\n⏳ طلب كود الاقتران للرقم ${phoneNumber}...\r`);
+      try {
+        let code = await sock.requestPairingCode(phoneNumber);
+        if (code) {
+          code = code.match(/.{1,4}/g)?.join("-") || code;
+          console.log("\n" + "═".repeat(42));
+          console.log("  كود الاقتران الخاص بك:");
+          console.log(`\n       ${code}\n`);
+          console.log("  الخطوات:");
+          console.log(`  1. افتح واتساب > الإعدادات > الأجهزة المرتبطة`);
+          console.log(`  2. اضغط "ربط جهاز"`);
+          console.log(`  3. اضغط ⋮ أو "الربط برقم الهاتف"`);
+          console.log(`  4. أدخل: ${code}`);
+          console.log("═".repeat(42) + "\n");
+        }
+      } catch (e) {
+        console.error(`\n❌ فشل طلب الكود: ${e.message}`);
+        console.log("   تأكد من الرقم وأعد التشغيل");
+        pairingCodeRequested = false;
+      }
     }
+
     if (connection === "close") {
       const reason = lastDisconnect?.error?.output?.statusCode;
       const shouldReconnect = reason !== DisconnectReason.loggedOut;
-      console.log(`🔄 قطع (${reason})، إعادة ${shouldReconnect ? "خلال 5 ثواني" : "توقف"}`);
+      console.log(`\n🔄 قطع (${reason})، إعادة ${shouldReconnect ? "خلال 5 ثواني" : "توقف"}`);
       if (shouldReconnect) setTimeout(start, 5000);
-      else process.exit(1);
+      else { console.log("❌ تم تسجيل الخروج"); process.exit(1); }
     }
+
     if (connection === "open") {
+      pairingCodeRequested = false;
       console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل!`);
       console.log(`👤 ${sock.user?.id || ""}`);
     }
