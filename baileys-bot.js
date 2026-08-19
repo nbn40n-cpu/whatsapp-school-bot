@@ -196,6 +196,7 @@ function shortenForVoice(t) {
 }
 
 async function handleMsg(sock, msg, jid) {
+  console.log(`🧪 [A] handleMsg متاح لجيد ${jid}`);
   const text = extractText(msg);
   const content = msg.message || {};
   const fam = isFamily(jid, msg);

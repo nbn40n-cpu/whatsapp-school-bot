@@ -1,0 +1,9 @@
+node_modules
+baileys_auth
+wwjs_session
+.wwebjs_cache
+auth_info
+*.txt
+*.log
+qr*.png
+docs
