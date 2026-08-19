@@ -16,7 +16,7 @@ const MEMORY_LIMIT = 6;
 
 const NO_THINKING = `
 
-مهم جداً: لا تكتب أي قسم "thinking" أو "reasoning" أو أي أفكار داخلية. أجب مباشرة بالنص النهائي لردك فقط. ركّز على آخر رسالة للمستخدم وأجب عليها وحدها.
+مهم جداً: أجب فقط بالنص النهائي لردك على واتساب بالعامية الأردنية. لا تكتب أي قسم "thinking" أو "reasoning" أو "analysis" أو "تحليل" أو أي أفكار داخلية أو تعليمات أو شرح للطريقة التي تستخدمها، ولا تكرر كلام المستخدم. لا تبدأ أي رد بكلمة "User" أو "المستخدم" أو "تحليل" أو "Context" أو "السياق". ركّز على آخر رسالة للمستخدم وأجب عليها وحدها فوراً. الرد يجب أن يكون جملة أو جملتين طبيعيتين فقط.
 
 `;
 
@@ -29,10 +29,15 @@ export function cleanReply(reply) {
     if (ai !== -1) s = after.slice(ai + 7);
     else s = after;
   }
-  s = s.replace(/^#{1,4}\s*/, "").replace(/\*\*/g, "").trim();
-  const arabicLines = s.split(/\n+/).map(l => l.replace(/^\s*[-•*\d.)]\s*/, "").trim()).filter(l => /[\u0600-\u06FF]/.test(l));
-  const text = arabicLines.join(" ") || s;
-  return text.replace(/\s{2,}/g, " ").trim();
+  const leak = /(User says:|Analyze User Input:|Analyze (the|this|user|input)|The user asks|Context:|Previous messages|Key info needed|Key information|Keep it short|Rule for|System:|Assistant:|مهم جداً|سؤال المستخدم|المستخدم قال|Context: Previous|The intent|The user is asking|I'll help)/i;
+  const lines = (s || "").split(/\n+/)
+    .map(l => l.replace(/^\s*[-•*\d.)]\s*/, "").trim())
+    .filter(l => l && !leak.test(l));
+  const arabicLines = lines.filter(l => /[\u0600-\u06FF]/.test(l));
+  let text = arabicLines.join(" ") || "";
+  text = text.replace(/^#{1,4}\s*/, "").replace(/\*\*/g, "").replace(/\s{2,}/g, " ").trim();
+  if (leak.test(text)) return "";
+  return text;
 }
 
 export async function getAIResponse(userMessage, isFamily = false, isIntimate = false, isBoss = false, isTrainer = false, isOwner = false, chatId = "") {
@@ -135,6 +140,8 @@ export async function transcribeAudio(audioBuffer, mimeType) {
       model: "whisper-large-v3",
       language: "ar",
       response_format: "text",
+      temperature: 0,
+      prompt: "رسالة صوتية بالعامية الأردنية من طالب في مدرسة لتعليم السياقة عن: موعد الدرس، ساعة التدريب، سمير المدرب، رخصة خصوصي أو شحن، فحص طبي، تيست، توريا، دفع فيزا.",
     });
     return transcript || "";
   } catch (error) {
