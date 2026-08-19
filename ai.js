@@ -29,12 +29,18 @@ export function cleanReply(reply) {
     if (ai !== -1) s = after.slice(ai + 7);
     else s = after;
   }
-  const leak = /(User says:|Analyze User Input:|Analyze (the|this|user|input)|The user asks|Context:|Previous messages|Key info needed|Key information|Keep it short|Rule for|System:|Assistant:|مهم جداً|سؤال المستخدم|المستخدم قال|Context: Previous|The intent|The user is asking|I'll help)/i;
+  const leak = /(User says:|Analyze User Input:|Analyze (the|this|user|input)|The user asks|Context:|Previous messages|Key info needed|Key information|Key elements|Keep it short|Rule for|System:|Assistant:|مهم جداً|سؤال المستخدم|المستخدم قال|Context: Previous|The intent|The user is (frustrated|confused|asking|clarifying)|I'll help|outside the core scope|prompt says|As an AI|I am an AI)/i;
+  const arLetter = /[\u0621-\u064A\u0671-\u06D3]/g;
   const lines = (s || "").split(/\n+/)
     .map(l => l.replace(/^\s*[-•*\d.)]\s*/, "").trim())
-    .filter(l => l && !leak.test(l));
-  const arabicLines = lines.filter(l => /[\u0600-\u06FF]/.test(l));
-  let text = arabicLines.join(" ") || "";
+    .filter(l => {
+      if (!l || leak.test(l)) return false;
+      const ars = (l.match(arLetter) || []).length;
+      const letters = (l.match(/[A-Za-z\u0621-\u064A\u0671-\u06D3]/g) || []).length;
+      if (letters > 4 && ars / letters < 0.45) return false;
+      return /[\u0621-\u064A\u0671-\u06D3]/.test(l);
+    });
+  let text = lines.join(" ") || "";
   text = text.replace(/^#{1,4}\s*/, "").replace(/\*\*/g, "").replace(/\s{2,}/g, " ").trim();
   if (leak.test(text)) return "";
   return text;
