@@ -134,7 +134,7 @@ function extractText(msg) {
   return "";
 }
 function isEmojiOnly(s) {
-  const cleaned = (s || "").replace(/[\p{Extended_Pictographic}\uFE0F\u200D\u20E3\u2600-\u27BF\u2B00-\u2BFF\u00A9\u00AE\u2122\u2190-\u21FF\u2300-\u23FF\u25A0-\u25FF\u2900-\u297F\u2B00-\u2BFF]/gu, "").replace(/[\s\W_]/g, "");
+  const cleaned = (s || "").replace(/[\p{Extended_Pictographic}\uFE0F\u200D\u20E3\u2600-\u27BF\u2B00-\u2BFF\u00A9\u00AE\u2122\u2190-\u21FF\u2300-\u23FF\u25A0-\u25FF\u2900-\u297F\u2B00-\u2BFF]/gu, "").replace(/\s+/g, "");
   return !cleaned;
 }
 
@@ -196,9 +196,7 @@ function shortenForVoice(t) {
 }
 
 async function handleMsg(sock, msg, jid) {
-  console.log(`🧪 [A] handleMsg متاح لجيد ${jid}`);
   const text = extractText(msg);
-  console.log(`🧪 [B] text="${text}"`);
   const content = msg.message || {};
   const fam = isFamily(jid, msg);
   const intimate = isIntimate(jid, msg);
@@ -237,30 +235,16 @@ async function handleMsg(sock, msg, jid) {
   }
   if (!text) {
     if (content.imageMessage || content.videoMessage || content.documentMessage || content.stickerMessage) {
-      console.log(`🧪 [C] media (بدون رد)`);
       return;
     }
-    console.log(`🧪 [D] no text`);
     return;
   }
-  if (isEmojiOnly(text)) {
-    console.log(`🧪 [E] emoji only`);
-    return;
-  }
+  if (isEmojiOnly(text)) return;
   const key = jid + "_" + text + "_" + (msg.messageTimestamp || 0);
-  if (seen.has(key)) {
-    console.log(`🧪 [F] seen dupe`);
-    return;
-  }
+  if (seen.has(key)) return;
   seen.add(key);
-  console.log(`🧪 [G] routeText...`);
-  if (await routeText(sock, msg, jid, text)) {
-    console.log(`🧪 [H] routeText returned true`);
-    return;
-  }
-  console.log(`🧪 [I] getAIResponse...`);
+  if (await routeText(sock, msg, jid, text)) return;
   const reply = await getAIResponse(text, fam, intimate, boss, trainer, false, jid);
-  console.log(`🧪 [J] reply=${reply.slice(0, 60)}`);
   if (reply === ERROR_REPLY) {
     const now = Date.now();
     const last = lastErrorReply.get(jid) || 0;
@@ -274,7 +258,6 @@ async function handleMsg(sock, msg, jid) {
 }
 
 async function routeText(sock, msg, jid, text, asVoice = false) {
-  console.log(`🧪 [R0] routeText jid=${jid} t="${text}" asVoice=${asVoice}`);
   const fam = isFamily(jid, msg);
   const intimate = isIntimate(jid, msg);
   const boss = isBoss(jid, msg);
