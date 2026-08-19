@@ -64,7 +64,7 @@ export async function getAIResponse(userMessage, isFamily = false, isIntimate = 
         max_tokens: 200,
       });
       const raw = completion.choices[0]?.message?.content || "";
-      const reply = cleanReply(raw) || "آسف، ما فهمت. ممكن توضيح؟";
+      const reply = cleanReply(raw) || "هههه آسفة، ما فهمتك، عيدها بكلمات تانية؟";
       chatMemory.set(chatId, [...history, { role: "user", content: userMessage }, { role: "assistant", content: reply }].slice(-MEMORY_LIMIT));
       return reply;
     } catch (error) {
@@ -86,7 +86,7 @@ export async function getAIResponse(userMessage, isFamily = false, isIntimate = 
               max_tokens: 200,
             });
             const raw = retry.choices[0]?.message?.content || "";
-            const reply = cleanReply(raw) || "آسف، ما فهمت. ممكن توضيح؟";
+            const reply = cleanReply(raw) || "هههه آسفة، ما فهمتك، عيدها بكلمات تانية؟";
             chatMemory.set(chatId, [...history, { role: "user", content: userMessage }, { role: "assistant", content: reply }].slice(-MEMORY_LIMIT));
             return reply;
           } catch (retryErr) {
