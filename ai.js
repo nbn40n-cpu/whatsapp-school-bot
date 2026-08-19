@@ -8,6 +8,20 @@ import { schoolInfo, familyStyle, intimateStyle, bossStyle, trainerStyle, ownerS
 const execFileAsync = promisify(execFile);
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+async function runEdgeTTS(args) {
+  const pythons = ["python3", "python"];
+  let lastErr = null;
+  for (const py of pythons) {
+    try {
+      const { stdout, stderr } = await execFileAsync(py, ["-m", "edge_tts", ...args], { timeout: 60000 });
+      return { stdout, stderr };
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr;
+}
+
 export const ERROR_REPLY = "هلا، فيه مشكلة مؤقتة، جرب تراسل تاني بعد شوي أو اكتب مدير سمير.";
 const PRIMARY_MODEL = "groq/compound-mini";
 const FALLBACK_MODELS = ["groq/compound", "qwen/qwen3.6-27b", "groq/compound-mini"];
@@ -29,7 +43,7 @@ export function cleanReply(reply) {
     if (ai !== -1) s = after.slice(ai + 7);
     else s = after;
   }
-  const leak = /(User says:|Analyze User Input:|Analyze (the|this|user|input)|The user asks|Context:|Previous messages|Key info needed|Key information|Key elements|Keep it short|Rule for|System:|Assistant:|مهم جداً|سؤال المستخدم|المستخدم قال|Context: Previous|The intent|The user is (frustrated|confused|asking|clarifying)|I'll help|outside the core scope|prompt says|As an AI|I am an AI)/i;
+  const leak = /(User says:|Analyze User Input:|Analyze (the|this|user|input)|The user asks|Context:|Previous messages|Key info needed|Key information|Key elements|Keep it short|Rule for|\bRule:|Rules?:|Matches the rule|System:|Assistant:|مهم جداً|سؤال المستخدم|المستخدم قال|Context: Previous|The intent|The user is (frustrated|confused|asking|clarifying)|I'll help|outside the core scope|prompt says|As an AI|I am an AI|I am "|I'm "سوزي|I am "سوزي)/i;
   const arLetter = /[\u0621-\u064A\u0671-\u06D3]/g;
   const lines = (s || "").split(/\n+/)
     .map(l => l.replace(/^\s*[-•*\d.)]\s*/, "").trim())
@@ -411,7 +425,7 @@ export async function textToSpeech(text) {
   const oggFile = `${tmpDir}/tts_${uniq}_out.ogg`;
   const natural = toColloquial(text);
   try {
-    await execFileAsync("python", ["-m", "edge_tts", "--voice", "ar-JO-SanaNeural", "--rate=-8%", "--pitch=-1Hz", "--text", natural, "--write-media", mp3File]);
+    await runEdgeTTS(["--voice", "ar-JO-SanaNeural", "--rate=-8%", "--pitch=-1Hz", "--text", natural, "--write-media", mp3File]);
     await execFileAsync(ffmpegPath, ["-y", "-i", mp3File, "-c:a", "libopus", "-b:a", "48k", oggFile]);
     const buffer = await readFile(oggFile);
     return { buffer, mimetype: "audio/ogg; codecs=opus" };
