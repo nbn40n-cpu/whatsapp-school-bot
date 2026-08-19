@@ -399,9 +399,10 @@ export function toColloquial(t) {
 }
 
 export async function textToSpeech(text) {
-  const tmpDir = "C:\\Users\\sky\\AppData\\Local\\Temp\\opencode";
-  const mp3File = `${tmpDir}\\tts_${Date.now()}_in.mp3`;
-  const oggFile = `${tmpDir}\\tts_${Date.now()}_out.ogg`;
+  const tmpDir = process.env.TMPDIR || "/tmp";
+  const uniq = `${Date.now()}_${Math.floor(Math.random() * 9999)}`;
+  const mp3File = `${tmpDir}/tts_${uniq}_in.mp3`;
+  const oggFile = `${tmpDir}/tts_${uniq}_out.ogg`;
   const natural = toColloquial(text);
   try {
     await execFileAsync("python", ["-m", "edge_tts", "--voice", "ar-JO-SanaNeural", "--rate=-8%", "--pitch=-1Hz", "--text", natural, "--write-media", mp3File]);
