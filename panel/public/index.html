@@ -193,6 +193,8 @@ async function refresh() {
     } catch (e) {
       if (e.message !== "انتهت الجلسة") { showView("main"); toast("تعذر التحميل: " + e.message, 4000); }
     }
+  } else {
+    showView("login");
   }
 }
 
