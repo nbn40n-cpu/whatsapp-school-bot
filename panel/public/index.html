@@ -182,7 +182,19 @@
       <div class="card" style="margin-top:12px">
         <b>الصوت (edge-tts)</b>
         <label>الصوت</label>
-        <input id="aiVoice" placeholder="ar-JO-SanaNeural">
+        <select id="aiVoice">
+          <option value="ar-JO-SanaNeural">أنثى أردنية (Sana)</option>
+          <option value="ar-JO-TaimNeural">ذكر أردني (Taim)</option>
+          <option value="ar-EG-SalmaNeural">أنثى مصرية (Salma)</option>
+          <option value="ar-EG-ShakirNeural">ذكر مصري (Shakir)</option>
+          <option value="ar-SA-ZariyahNeural">أنثى سعودية (Zariyah)</option>
+          <option value="ar-SA-HamedNeural">ذكر سعودي (Hamed)</option>
+          <option value="ar-AE-FatimaNeural">أنثى إماراتية (Fatima)</option>
+          <option value="ar-AE-HamdanNeural">ذكر إماراتي (Hamdan)</option>
+          <option value="ar-SY-AmanyNeural">أنثى سورية (Amany)</option>
+          <option value="ar-SY-LaithNeural">ذكر سوري (Laith)</option>
+          <option value="ar-IQ-AzizNeural">ذكر عراقي (Aziz)</option>
+        </select>
         <label>السرعة</label>
         <input id="aiRate" placeholder="-8%">
         <label>الطبقة (pitch)</label>
@@ -535,13 +547,21 @@ function renderSettings() {
   $("aiFallbacks").value = (ai.fallbackModels || []).join(",");
   $("aiTemp").value = ai.temperature ?? "";
   $("aiMax").value = ai.maxTokens ?? "";
-  $("aiVoice").value = voice.voice || "";
+  const currentVoice = voice.voice || "ar-JO-SanaNeural";
+  const sel = $("aiVoice");
+  if (!Array.from(sel.options).some((o) => o.value === currentVoice)) {
+    const opt = document.createElement("option");
+    opt.value = currentVoice;
+    opt.textContent = "مخصص: " + currentVoice;
+    sel.appendChild(opt);
+  }
+  sel.value = currentVoice;
   $("aiRate").value = voice.rate || "";
   $("aiPitch").value = voice.pitch || "";
   $("aiReplyVoice").checked = voice.replyToVoice !== false;
   $("aiPrimary").oninput = markSettings; $("aiFallbacks").oninput = markSettings;
   $("aiTemp").oninput = markSettings; $("aiMax").oninput = markSettings;
-  $("aiVoice").oninput = markSettings; $("aiRate").oninput = markSettings;
+  $("aiVoice").onchange = markSettings; $("aiRate").oninput = markSettings;
   $("aiPitch").oninput = markSettings; $("aiReplyVoice").onchange = markSettings;
 }
 function markSettings() { settingsDirty = true; }
