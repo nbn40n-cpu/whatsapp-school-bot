@@ -26,6 +26,7 @@
   .login-box { max-width: 380px; margin: 12vh auto; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 28px; }
   .login-box h2 { margin-bottom: 18px; text-align: center; }
   input, textarea, select { width: 100%; padding: 10px 12px; background: var(--card2); border: 1px solid var(--line); border-radius: 9px; color: var(--text); font-size: 14px; }
+  textarea { resize: vertical; min-height: 70px; }
   input:focus, textarea:focus { outline: 2px solid var(--acc); }
   label { display: block; margin: 10px 0 5px; font-size: 13px; color: var(--muted); }
   button { cursor: pointer; border: none; border-radius: 9px; padding: 10px 16px; font-size: 14px; font-weight: bold; background: var(--acc); color: #06283d; }
@@ -80,6 +81,11 @@
 
   <!-- MAIN -->
   <div id="viewMain" class="hidden">
+    <div class="row" style="margin-top:12px;gap:6px">
+      <button class="ghost sm" data-tab="dashboard">📊 لوحة الحالة</button>
+      <button class="ghost sm" data-tab="replies">💬 الردود</button>
+      <button class="ghost sm" data-tab="numbers">📞 الأرقام</button>
+    </div>
 
     <div class="section" id="secDashboard">
       <h3>حالة البوت</h3>
@@ -107,6 +113,52 @@
     <div class="section">
       <h3>آخر الرسائل</h3>
       <div id="boxLogs"></div>
+    </div>
+
+    <div class="section hidden" id="secReplies">
+      <div class="row" style="align-items:center;justify-content:space-between">
+        <h3 style="margin:0">💬 الردود الجاهزة</h3>
+        <button class="ok sm" id="btnNewReply">+ رد جديد</button>
+      </div>
+      <div class="card" style="margin-top:10px">
+        <div class="row">
+          <input id="fqSearch" placeholder="ابحث في الردود...">
+          <select id="fqCat" style="max-width:230px"></select>
+        </div>
+      </div>
+      <div id="boxReplies" style="margin-top:10px"></div>
+      <div class="card hidden" id="replyEditor" style="margin-top:12px">
+        <h4 id="replyEditorTitle">رد جديد</h4>
+        <label>التصنيف</label>
+        <select id="reCat"><option>الردود العامة</option></select>
+        <label>الكلمات المفتاحية (افصل بينها بفاصلة , )</label>
+        <input id="reTriggers" placeholder="مثال: سعر خصوصي, حصة خصوصي, خصوصي كم">
+        <label>نوع المطابقة</label>
+        <select id="reMode">
+          <option value="contains">نص يحتوي الكلمة</option>
+          <option value="word">كلمة كاملة</option>
+          <option value="regex">تعبير نمطي (regex)</option>
+        </select>
+        <label>الرد</label>
+        <textarea id="reReply" rows="3"></textarea>
+        <label>مفعّل</label>
+        <select id="reActive"><option value="1">مفعّل</option><option value="0">معطّل</option></select>
+        <div class="row" style="margin-top:12px">
+          <button class="ok" id="btnSaveReply">حفظ</button>
+          <button class="ghost" id="btnCancelReply">إلغاء</button>
+          <button class="danger hidden" id="btnDeleteReply">حذف</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section hidden" id="secNumbers">
+      <h3>📞 الأرقام والفئات</h3>
+      <div class="card" style="margin-top:10px">
+        <table>
+          <thead><tr><th>الرقم</th><th>الاسم</th><th>الفئة</th></tr></thead>
+          <tbody id="boxNumbers"></tbody>
+        </table>
+      </div>
     </div>
 
   </div>
@@ -189,6 +241,8 @@ async function refresh() {
       stateData = d;
       renderDashboard(d);
       renderLogs(d);
+      renderReplies();
+      renderNumbers();
       showView("main");
     } catch (e) {
       if (e.message !== "انتهت الجلسة") { showView("main"); toast("تعذر التحميل: " + e.message, 4000); }
@@ -196,6 +250,152 @@ async function refresh() {
   } else {
     showView("login");
   }
+}
+
+let activeTab = "dashboard";
+function showTab(tab) {
+  activeTab = tab;
+  $("secDashboard").classList.toggle("hidden", tab !== "dashboard");
+  $("secReplies").classList.toggle("hidden", tab !== "replies");
+  $("secNumbers").classList.toggle("hidden", tab !== "numbers");
+  document.querySelectorAll("[data-tab]").forEach((b) => {
+    const on = b.dataset.tab === tab;
+    b.style.background = on ? "var(--acc)" : "";
+    b.style.color = on ? "#06283d" : "";
+  });
+}
+document.querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => showTab(b.dataset.tab));
+
+function renderCatOptions(sel, selected) {
+  const cats = (stateData && stateData.categories) || [];
+  sel.innerHTML = "";
+  for (const c of cats || []) {
+    const o = document.createElement("option");
+    o.value = c; o.textContent = c;
+    if (c === selected) o.selected = true;
+    sel.appendChild(o);
+  }
+}
+
+function renderReplies() {
+  const faq = (stateData && stateData.faq) || [];
+  renderCatOptions($("fqCat"), "");
+  const search = ($("fqSearch").value || "").trim();
+  const cat = $("fqCat").value;
+  let list = faq.filter((f) => {
+    if (cat && f.category !== cat) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      const hay = ((f.reply || "") + " " + (f.triggers || []).join(" ") + " " + (f.category || "")).toLowerCase();
+      if (!hay.includes(s)) return false;
+    }
+    return true;
+  });
+  const box = $("boxReplies");
+  if (!list.length) { box.innerHTML = '<div class="muted">لا توجد ردود.</div>'; return; }
+  box.innerHTML = "";
+  for (const f of list) {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.style.cssText = "margin-bottom:8px;padding:12px;opacity:" + (f.active === false ? ".55" : "1");
+    const kws = (f.triggers || []).map((t) => `<span class="muted" style="background:var(--card2);padding:1px 7px;border-radius:5px;margin:0 3px">${t}</span>`).join("");
+    const managed = f.managed ? "" : ' <span class="muted">(افتراضي — فعّله مرة لتعديله)</span>';
+    div.innerHTML = `
+      <div style="display:flex;justify-content:space-between;gap:8px">
+        <b>${f.category || "—"}</b>
+        <span class="muted" style="white-space:nowrap">${f.active === false ? "⏸ معطّل" : "✅ مفعّل"}</span>
+      </div>
+      <div style="margin-top:6px">${kws}</div>
+      <div style="margin-top:6px">${f.reply}</div>
+      <div class="row" style="margin-top:8px">
+        <button class="ghost sm" onclick="editReply('${f.id}')">✏ تعديل</button>
+        <button class="ghost sm" onclick="toggleReply('${f.id}')">${f.active === false ? "▶ تفعيل" : "⏸ تعطيل"}</button>
+        <button class="ghost sm" onclick="copyReply('${f.id}')">📋 نسخ</button>
+        <button class="danger sm" onclick="delReply('${f.id}')">🗑</button>
+      </div>`;
+    box.appendChild(div);
+  }
+}
+
+let editingId = null;
+function fillEditor(entry) {
+  editingId = entry ? entry.id : null;
+  $("replyEditorTitle").textContent = entry ? "تعديل رد" : "رد جديد";
+  renderCatOptions($("reCat"), entry ? entry.category : "");
+  $("reTriggers").value = (entry && entry.triggers || []).join(" , ");
+  $("reMode").value = (entry && entry.matchMode) || "contains";
+  $("reReply").value = (entry && entry.reply) || "";
+  $("reActive").value = entry && entry.active === false ? "0" : "1";
+  $("btnDeleteReply").classList.toggle("hidden", !entry);
+  $("replyEditor").classList.remove("hidden");
+  $("replyEditor").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+function closeEditor() { $("replyEditor").classList.add("hidden"); editingId = null; }
+
+$("btnNewReply").onclick = () => fillEditor(null);
+$("btnCancelReply").onclick = closeEditor;
+$("btnDeleteReply").onclick = async () => {
+  if (!editingId) return;
+  if (!confirm("متأكد تحذف هذا الرد؟")) return;
+  try { await api("/panel/api/faq/" + editingId, { method: "DELETE" }); closeEditor(); toast("تم الحذف"); await refresh(); }
+  catch (e) { toast(e.message); }
+};
+$("fqSearch").addEventListener("input", renderReplies);
+$("fqCat").addEventListener("change", renderReplies);
+
+async function editReply(id) {
+  const f = (stateData && stateData.faq || []).find((x) => x.id === id);
+  if (f) fillEditor(f);
+}
+async function toggleReply(id) {
+  try { await api("/panel/api/faq/" + id + "/toggle", { method: "POST" }); await refresh(); }
+  catch (e) { toast(e.message); }
+}
+async function copyReply(id) {
+  const f = (stateData && stateData.faq || []).find((x) => x.id === id);
+  if (!f) return;
+  const txt = "[" + (f.triggers || []).join("، ") + "] → " + f.reply;
+  try { await navigator.clipboard.writeText(txt); toast("نُسخ الرد 📋"); } catch (_) { toast(txt.slice(0, 60) + "..."); }
+}
+async function delReply(id) {
+  if (!confirm("متأكد تحذف هذا الرد؟")) return;
+  try { await api("/panel/api/faq/" + id, { method: "DELETE" }); await refresh(); toast("تم الحذف"); }
+  catch (e) { toast(e.message); }
+}
+
+$("btnSaveReply").onclick = async () => {
+  const triggers = ($("reTriggers").value || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const reply = $("reReply").value.trim();
+  const payload = {
+    category: $("reCat").value,
+    triggers,
+    matchMode: $("reMode").value,
+    reply,
+    active: $("reActive").value === "1",
+  };
+  if (!triggers.length || !reply) { toast("الكلمات المفتاحية والرد مطلوبان"); return; }
+  try {
+    if (editingId) await api("/panel/api/faq/" + editingId, { method: "PUT", body: payload });
+    else await api("/panel/api/faq", { method: "POST", body: payload });
+    closeEditor();
+    toast("تم الحفظ ✅");
+    await refresh();
+  } catch (e) { toast(e.message); }
+};
+
+function renderNumbers() {
+  const n = (stateData && stateData.numbers) || {};
+  const names = (stateData && stateData.names) || {};
+  const rows = [];
+  const push = (num, name, cat) => rows.push({ num, name, cat });
+  (n.family || []).forEach((x) => push(x, names.family?.[x] || "", "عائلة"));
+  (n.intimate || []).forEach((x) => push(x, names.family?.[x] || "", "انتيمة"));
+  (n.boss || []).forEach((x) => push(x, "الحج بديع أبو قبيطة", "صاحب المدرسة"));
+  (n.trainers || []).forEach((x) => push(x, names.trainers?.[x] || "", "مدرب"));
+  push(n.owner, "المدير سمير", "المدير");
+  const tb = $("boxNumbers");
+  if (!rows.length) { tb.innerHTML = '<tr><td colspan="3">لا توجد أرقام</td></tr>'; return; }
+  tb.innerHTML = rows.map((r) => `<tr><td dir="ltr">${r.num}</td><td>${r.name || "—"}</td><td>${r.cat}</td></tr>`).join("");
 }
 
 $("btnLogin").onclick = async () => {

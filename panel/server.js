@@ -95,7 +95,8 @@ export async function startPanel({ getBotState, onControl }) {
     try {
       const b = getBotState();
       const stats = await getStats();
-      res.json({ ok: true, state: b, stats, control: { paused: control.paused, pausedAt: control.pausedAt } });
+      const s = await getStore();
+      res.json({ ok: true, state: b, stats, control: { paused: control.paused, pausedAt: control.pausedAt }, faq: s.faq || [], categories: s.categories || [], numbers: s.numbers || {}, names: s.names || {} });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
@@ -127,6 +128,109 @@ export async function startPanel({ getBotState, onControl }) {
       await updateStore(() => next);
       const s = await getStore();
       res.json({ ok: true, config: s });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.put("/panel/api/config", auth, async (req, res) => {
+    try {
+      const next = req.body?.config;
+      if (!next || typeof next !== "object") return res.status(400).json({ ok: false, error: "config مطلوب" });
+      await updateStore(() => next);
+      const s = await getStore();
+      res.json({ ok: true, config: s });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  const genId = () => "faq-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e4).toString(36);
+
+  app.post("/panel/api/faq", auth, async (req, res) => {
+    try {
+      const body = req.body || {};
+      const entry = {
+        id: genId(),
+        managed: true,
+        active: body.active !== false,
+        category: String(body.category || "الردود العامة"),
+        triggers: Array.isArray(body.triggers) ? body.triggers.map(String).filter(Boolean) : [],
+        reply: String(body.reply || ""),
+        matchMode: body.matchMode || "contains",
+      };
+      if (!entry.triggers.length || !entry.reply) return res.status(400).json({ ok: false, error: "الكلمات المفتاحية والرد مطلوبان" });
+      await updateStore((s) => { (s.faq = s.faq || []).push(entry); return s; });
+      res.json({ ok: true, faq: entry });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.put("/panel/api/faq/:id", auth, async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      const body = req.body || {};
+      await updateStore((s) => {
+        s.faq = s.faq || [];
+        const idx = s.faq.findIndex((f) => f.id === id);
+        if (idx === -1) throw new Error("الرد غير موجود");
+        const cur = s.faq[idx];
+        s.faq[idx] = {
+          ...cur,
+          ...body,
+          id,
+          managed: true,
+          triggers: body.triggers !== undefined ? body.triggers.map(String).filter(Boolean) : cur.triggers,
+        };
+        return s;
+      });
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.delete("/panel/api/faq/:id", auth, async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      await updateStore((s) => { s.faq = (s.faq || []).filter((f) => f.id !== id); return s; });
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post("/panel/api/faq/:id/toggle", auth, async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      await updateStore((s) => {
+        const f = (s.faq || []).find((x) => x.id === id);
+        if (!f) throw new Error("الرد غير موجود");
+        f.active = f.active === false;
+        f.managed = true;
+        return s;
+      });
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.get("/panel/api/categories", auth, async (req, res) => {
+    try {
+      const s = await getStore();
+      res.json({ ok: true, categories: s.categories || [] });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.put("/panel/api/categories", auth, async (req, res) => {
+    try {
+      const cats = (req.body?.categories || []).map(String).filter(Boolean);
+      await updateStore((s) => { s.categories = cats; return s; });
+      res.json({ ok: true, categories: cats });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }

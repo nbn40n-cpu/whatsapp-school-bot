@@ -4,6 +4,7 @@ import { getAIResponse, transcribeAudio, textToSpeech, ERROR_REPLY } from "./ai.
 import { loadStore, getStore, saveStore } from "./store.js";
 import { bumpCounter, setLastError, setLastStart, pushEvent, trackChat } from "./stats.js";
 import { startPanel, setPaused, getControl } from "./panel/server.js";
+import { findStoreReply } from "./router.js";
 import path from "path";
 import fs from "fs";
 import QR from "qrcode";
@@ -364,6 +365,12 @@ async function routeText(sock, msg, jid, text, asVoice = false) {
     } else {
       await respond("رقم المدير سمير: 0568444407");
     }
+    return true;
+  }
+  const storeReply = await findStoreReply(text, t);
+  if (storeReply) {
+    bumpCounter("answered").then(v => v);
+    await respond(storeReply.reply);
     return true;
   }
   const faq = handleFAQ(text, t);
