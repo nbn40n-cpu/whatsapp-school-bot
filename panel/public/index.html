@@ -152,13 +152,12 @@
     </div>
 
     <div class="section hidden" id="secNumbers">
-      <h3>📞 الأرقام والفئات</h3>
-      <div class="card" style="margin-top:10px">
-        <table>
-          <thead><tr><th>الرقم</th><th>الاسم</th><th>الفئة</th></tr></thead>
-          <tbody id="boxNumbers"></tbody>
-        </table>
+      <div class="row" style="align-items:center;justify-content:space-between">
+        <h3 style="margin:0">📞 الأرقام والفئات</h3>
+        <button class="ok sm" id="btnSaveNumbers">💾 حفظ الأرقام</button>
       </div>
+      <p class="muted">عدّل الأرقام والأسماء ثم احفظ. كل فئة لها قائمة تُطبَّق مباشرة على البوت.</p>
+      <div id="numbersEditor"></div>
     </div>
 
   </div>
@@ -242,7 +241,7 @@ async function refresh() {
       renderDashboard(d);
       renderLogs(d);
       renderReplies();
-      renderNumbers();
+      if (!numbersDirty) renderNumbers();
       showView("main");
     } catch (e) {
       if (e.message !== "انتهت الجلسة") { showView("main"); toast("تعذر التحميل: " + e.message, 4000); }
@@ -383,20 +382,76 @@ $("btnSaveReply").onclick = async () => {
   } catch (e) { toast(e.message); }
 };
 
+const NUMBER_GROUPS = [
+  { key: "owner", label: "المدير", single: true },
+  { key: "boss", label: "صاحب المدرسة" },
+  { key: "family", label: "العائلة (أسماء)" },
+  { key: "intimate", label: "الأقرباء/المقربين" },
+  { key: "trainers", label: "المدربين (أسماء)" },
+];
+const TRAINER_REG = (x) => /^(05|2|5)/.test(x || "");
+let numbersDirty = false;
+
 function renderNumbers() {
   const n = (stateData && stateData.numbers) || {};
   const names = (stateData && stateData.names) || {};
-  const rows = [];
-  const push = (num, name, cat) => rows.push({ num, name, cat });
-  (n.family || []).forEach((x) => push(x, names.family?.[x] || "", "عائلة"));
-  (n.intimate || []).forEach((x) => push(x, names.family?.[x] || "", "انتيمة"));
-  (n.boss || []).forEach((x) => push(x, "الحج بديع أبو قبيطة", "صاحب المدرسة"));
-  (n.trainers || []).forEach((x) => push(x, names.trainers?.[x] || "", "مدرب"));
-  push(n.owner, "المدير سمير", "المدير");
-  const tb = $("boxNumbers");
-  if (!rows.length) { tb.innerHTML = '<tr><td colspan="3">لا توجد أرقام</td></tr>'; return; }
-  tb.innerHTML = rows.map((r) => `<tr><td dir="ltr">${r.num}</td><td>${r.name || "—"}</td><td>${r.cat}</td></tr>`).join("");
+  const groups = {
+    owner: typeof n.owner === "string" ? [n.owner] : (n.owner || []),
+    boss: (n.boss || []),
+    family: (n.family || []),
+    intimate: (n.intimate || []),
+    trainers: (n.trainers || []),
+  };
+  const edited = { family: { ...names.family }, trainers: { ...names.trainers } };
+  const ed = $("numbersEditor");
+  ed.innerHTML = "";
+  for (const g of NUMBER_GROUPS) {
+    const box = document.createElement("div");
+    box.className = "card";
+    box.style.cssText = "margin-bottom:10px;padding:12px";
+    box.innerHTML = `<div class="row" style="justify-content:space-between"><b>${g.label}</b><button class="ghost sm" data-add="${g.key}">+ إضافة رقم</button></div><div data-rows="${g.key}"></div>`;
+    ed.appendChild(box);
+    const rowsWrap = box.querySelector("[data-rows]");
+    const list = groups[g.key] || [];
+    if (!list.length) addNumberRow(rowsWrap, g, "", edited);
+    else list.forEach((num) => addNumberRow(rowsWrap, g, num, edited));
+    box.querySelector("[data-add]").onclick = () => addNumberRow(rowsWrap, g, "", edited);
+  }
 }
+
+function addNumberRow(wrap, g, num, edited) {
+  const div = document.createElement("div");
+  div.className = "row";
+  div.style.cssText = "gap:6px;margin-top:8px;align-items:center";
+  const nameVal = edited.family?.[num] || edited.trainers?.[num] || "";
+  div.innerHTML = `
+    <input data-num="${g.key}" dir="ltr" placeholder="05xxxxxxxx" value="${num}" style="max-width:150px">
+    <input data-name="${g.key}" placeholder="الاسم (اختياري)" value="${nameVal}" style="flex:1">
+    <button class="danger sm" data-rm>✕</button>`;
+  div.querySelector("[data-rm]").onclick = () => { div.remove(); };
+  div.querySelectorAll("input").forEach((inp) => inp.addEventListener("input", () => { numbersDirty = true; }));
+  wrap.appendChild(div);
+}
+
+$("btnSaveNumbers").onclick = async () => {
+  const out = { owner: "", boss: [], family: [], intimate: [], trainers: [], names: { family: {}, trainers: {} } };
+  document.querySelectorAll("[data-num]").forEach((inp) => {
+    const key = inp.dataset.num;
+    const num = String(inp.value || "").replace(/\D/g, "");
+    if (num.length < 9) return;
+    const row = inp.closest(".row");
+    const nameInp = row.querySelector("[data-name]");
+    const name = nameInp ? nameInp.value.trim() : "";
+    if (key === "owner") out.owner = num;
+    else out[key].push(num);
+    if (key === "family" && name) out.names.family[num] = name;
+    if (key === "trainers" && name) out.names.trainers[num] = name;
+  });
+  try {
+    const saved = await api("/panel/api/numbers", { method: "PUT", body: out });
+    if (saved.ok) { toast("تم حفظ الأرقام ✅"); numbersDirty = false; stateData = saved; await refresh(); }
+  } catch (e) { toast(e.message); }
+};
 
 $("btnLogin").onclick = async () => {
   const pw = $("inPass").value;

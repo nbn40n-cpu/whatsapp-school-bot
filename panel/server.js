@@ -55,7 +55,7 @@ function verifyToken(token, secret) {
   }
 }
 
-export async function startPanel({ getBotState, onControl }) {
+export async function startPanel({ getBotState, onControl, onConfigChanged, onNumbersChanged }) {
   const express = (await import("express")).default;
   const app = express();
   const secret = randomBytes(32).toString("hex");
@@ -125,7 +125,8 @@ export async function startPanel({ getBotState, onControl }) {
     try {
       const next = req.body?.config;
       if (!next || typeof next !== "object") return res.status(400).json({ ok: false, error: "config مطلوب" });
-      await updateStore(() => next);
+      const upd = await updateStore((s) => ({ ...s, ...next }));
+      if (onConfigChanged) await onConfigChanged(upd);
       const s = await getStore();
       res.json({ ok: true, config: s });
     } catch (e) {
@@ -133,13 +134,26 @@ export async function startPanel({ getBotState, onControl }) {
     }
   });
 
-  app.put("/panel/api/config", auth, async (req, res) => {
+  app.put("/panel/api/numbers", auth, async (req, res) => {
     try {
-      const next = req.body?.config;
-      if (!next || typeof next !== "object") return res.status(400).json({ ok: false, error: "config مطلوب" });
-      await updateStore(() => next);
+      const next = req.body || {};
+      const pick = (k) => Array.isArray(next[k]) ? next[k].map((x) => String(x).replace(/\D/g, "").trim()).filter((x) => x.length >= 9) : undefined;
+      const names = next.names && typeof next.names === "object" ? next.names : undefined;
+      if (typeof next !== "object" || !pick("family") && !pick("intimate") && !pick("boss") && !pick("trainers") && !pick("owner") && !names)
+        return res.status(400).json({ ok: false, error: "numbers مطلوب" });
+      const upd = await updateStore((s) => {
+        const n = s.numbers = s.numbers || {};
+        if (pick("family") !== undefined) n.family = pick("family");
+        if (pick("intimate") !== undefined) n.intimate = pick("intimate");
+        if (pick("boss") !== undefined) n.boss = pick("boss");
+        if (pick("trainers") !== undefined) n.trainers = pick("trainers");
+        if (next.owner) n.owner = String(next.owner).replace(/\D/g, "");
+        if (names) s.names = s.names || {}, Object.assign(s.names, names);
+        return s;
+      });
+      if (onNumbersChanged) await onNumbersChanged();
       const s = await getStore();
-      res.json({ ok: true, config: s });
+      res.json({ ok: true, numbers: s.numbers || {}, names: s.names || {} });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }

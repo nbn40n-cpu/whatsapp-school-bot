@@ -521,6 +521,12 @@ async function start() {
         paused: getControl().paused,
         uptimeSeconds: Math.round((Date.now() - (status.startedAt || Date.now())) / 1000),
       }),
+      onConfigChanged: async () => {
+        await applyStoreNumbers();
+      },
+      onNumbersChanged: async () => {
+        await applyStoreNumbers();
+      },
       onControl: async (action) => {
         if (action === "pause") {
           setPaused(true);
