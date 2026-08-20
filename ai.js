@@ -3,7 +3,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile } from "node:fs/promises";
 import ffmpegPath from "ffmpeg-static";
-import { schoolInfo, familyStyle, intimateStyle, bossStyle, trainerStyle, ownerStyle } from "./school-context.js";
+import { getSchoolInfo, familyStyle, intimateStyle, bossStyle, trainerStyle, ownerStyle } from "./school-context.js";
 import { getStore } from "./store.js";
 
 const execFileAsync = promisify(execFile);
@@ -80,6 +80,7 @@ export function cleanReply(reply) {
 }
 
 export async function getAIResponse(userMessage, isFamily = false, isIntimate = false, isBoss = false, isTrainer = false, isOwner = false, chatId = "") {
+  const schoolInfo = await getSchoolInfo();
   const system = (isOwner ? schoolInfo + ownerStyle : isBoss ? schoolInfo + bossStyle : isTrainer ? schoolInfo + trainerStyle : isIntimate ? schoolInfo + intimateStyle : isFamily ? schoolInfo + familyStyle : schoolInfo) + NO_THINKING;
   const history = (chatMemory.get(chatId) || []).slice(-MEMORY_LIMIT);
   const settings = await aiSettings();
@@ -141,6 +142,7 @@ export async function getAIResponse(userMessage, isFamily = false, isIntimate = 
 }
 
 export async function getAIFactReply(fact, userMessage, isFamily = false, isIntimate = false, isBoss = false, isTrainer = false, chatId = "") {
+  const schoolInfo = await getSchoolInfo();
   const style = isBoss ? bossStyle : isTrainer ? trainerStyle : isIntimate ? intimateStyle : isFamily ? familyStyle : "";
   const system = schoolInfo + style + `
 

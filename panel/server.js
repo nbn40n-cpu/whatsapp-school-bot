@@ -96,7 +96,7 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
       const b = getBotState();
       const stats = await getStats();
       const s = await getStore();
-      res.json({ ok: true, state: b, stats, control: { paused: control.paused, pausedAt: control.pausedAt }, faq: s.faq || [], categories: s.categories || [], numbers: s.numbers || {}, names: s.names || {}, ai: s.ai || {}, voice: s.voice || {} });
+      res.json({ ok: true, state: b, stats, control: { paused: control.paused, pausedAt: control.pausedAt }, faq: s.faq || [], categories: s.categories || [], numbers: s.numbers || {}, names: s.names || {}, ai: s.ai || {}, voice: s.voice || {}, school: s.school || {}, prices: s.prices || {}, medical: s.medical || {}, links: s.links || {}, papers: s.papers || {}, licenseFees: s.licenseFees || {} });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
@@ -129,6 +129,36 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
       if (onConfigChanged) await onConfigChanged(upd);
       const s = await getStore();
       res.json({ ok: true, config: s });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  const scopedSections = {};
+  for (const k of ["school", "ages", "medical", "prices", "papers", "exams", "links", "busCourse", "licenseFees", "trafficSigns", "oralExamRule", "newDriver", "contracts", "names"]) {
+    scopedSections[k] = 1;
+  }
+
+  app.put("/panel/api/school", auth, async (req, res) => {
+    try {
+      const body = req.body || {};
+      const keys = Object.keys(body);
+      if (!keys.length || keys.some((k) => !scopedSections[k])) {
+        return res.status(400).json({ ok: false, error: "المفتاح غير مسموح: " + keys.join(",") });
+      }
+      const upd = await updateStore((s) => {
+        for (const k of keys) {
+          if (body[k] && typeof body[k] === "object" && !Array.isArray(body[k])) {
+            s[k] = { ...(s[k] || {}), ...body[k] };
+          } else {
+            s[k] = body[k];
+          }
+        }
+        return s;
+      });
+      if (onConfigChanged) await onConfigChanged(upd);
+      const s = await getStore();
+      res.json({ ok: true, school: s });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }

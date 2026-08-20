@@ -86,6 +86,7 @@
       <button class="ghost sm" data-tab="replies">💬 الردود</button>
       <button class="ghost sm" data-tab="numbers">📞 الأرقام</button>
       <button class="ghost sm" data-tab="settings">⚙️ الإعدادات</button>
+      <button class="ghost sm" data-tab="school">🏫 المدرسة</button>
     </div>
 
     <div class="section" id="secDashboard">
@@ -189,6 +190,15 @@
       </div>
     </div>
 
+    <div class="section hidden" id="secSchool">
+      <div class="row" style="align-items:center;justify-content:space-between">
+        <h3 style="margin:0">🏫 معلومات المدرسة</h3>
+        <button class="ok sm" id="btnSaveSchool">💾 حفظ</button>
+      </div>
+      <p class="muted">عدّل معلومات المدرسة (تُطبَّق على ردود الذكاء فوراً بعد الحفظ).</p>
+      <div class="card" style="margin-top:12px" id="schoolEditor"></div>
+    </div>
+
   </div>
 </div>
 <div class="toast hidden" id="toast"></div>
@@ -272,6 +282,7 @@ async function refresh() {
       renderReplies();
       if (!numbersDirty) renderNumbers();
       if (!settingsDirty) renderSettings();
+      if (!schoolDirty) renderSchool();
       showView("main");
     } catch (e) {
       if (e.message !== "انتهت الجلسة") { showView("main"); toast("تعذر التحميل: " + e.message, 4000); }
@@ -288,6 +299,7 @@ function showTab(tab) {
   $("secReplies").classList.toggle("hidden", tab !== "replies");
   $("secNumbers").classList.toggle("hidden", tab !== "numbers");
   $("secSettings").classList.toggle("hidden", tab !== "settings");
+  $("secSchool").classList.toggle("hidden", tab !== "school");
   document.querySelectorAll("[data-tab]").forEach((b) => {
     const on = b.dataset.tab === tab;
     b.style.background = on ? "var(--acc)" : "";
@@ -517,6 +529,110 @@ $("btnSaveAi").onclick = async () => {
   try {
     const saved = await api("/panel/api/ai", { method: "PUT", body });
     if (saved.ok) { toast("تم حفظ الإعدادات ✅"); settingsDirty = false; stateData.ai = saved.ai; stateData.voice = saved.voice; await refresh(); }
+  } catch (e) { toast(e.message); }
+};
+
+let schoolDirty = false;
+function renderSchool() {
+  const d = stateData || {};
+  const sch = d.school || {};
+  const pr = d.prices || {};
+  const med = d.medical || {};
+  const lk = d.links || {};
+  const ppr = d.papers || {};
+  const lf = d.licenseFees || {};
+  const edt = $("schoolEditor");
+  const fld = (label, val, id, ph = "") => `<label>${label}</label><input id="${id}" value="${(val ?? "").toString().replace(/"/g, "&quot;")}" placeholder="${ph}">`;
+  edt.innerHTML = `
+    <div class="grid">
+      <div>${fld("اسم المدرسة", sch.name, "scName")}</div>
+      <div>${fld("هاتف المدرسة/المدير", sch.phone, "scPhone", "0568444407")}</div>
+      <div>${fld("صاحب المدرسة", sch.owner, "scOwner")}</div>
+      <div>${fld("ساعة صاحب المدرسة", sch.ownerPhone, "scOwnerPhone")}</div>
+    </div>
+    ${fld("العنوان", sch.address, "scAddress")}
+    ${fld("دوام الدوام", sch.workdays, "scWorkdays", "سبت-خميس 8-3، جمعة عطلة")}
+    <hr style="border-color:var(--line);margin:14px 0">
+    <b>أسعار الدرس (شيكل)</b><div class="grid">
+      <div>${fld("خصوصي", pr.lesson && pr.lesson.خصوصي, "prLessonKh")}</div>
+      <div>${fld("شحن خفيف", pr.lesson && pr.lesson["شحن خفيف"], "prLessonSh")}</div>
+      <div>${fld("ثقيل", pr.lesson && pr.lesson.ثقيل, "prLessonTh")}</div>
+      <div>${fld("باص", pr.lesson && pr.lesson.باص, "prLessonBus")}</div>
+      <div>${fld("تراكتور", pr.lesson && pr.lesson.تراكتور, "prLessonTr")}</div>
+    </div>
+    <b style="margin-top:10px;display:inline-block">تيست أول (شيكل)</b><div class="grid">
+      <div>${fld("خصوصي", pr.testFirst && pr.testFirst.خصوصي, "prTestKh")}</div>
+      <div>${fld("شحن خفيف", pr.testFirst && pr.testFirst["شحن خفيف"], "prTestSh")}</div>
+      <div>${fld("ثقيل", pr.testFirst && pr.testFirst.ثقيل, "prTestTh")}</div>
+      <div>${fld("باص", pr.testFirst && pr.testFirst.باص, "prTestBus")}</div>
+      <div>${fld("تراكتور", pr.testFirst && pr.testFirst.تراكتور, "prTestTr")}</div>
+    </div>
+    <b style="margin-top:10px;display:inline-block">الفحص الطبي</b>
+    <div class="grid">
+      ${fld("خصوصي/تراكتور (شيكل)", med.private && med.private.price, "medPriv")}
+      ${fld("شحن/باص (شيكل)", med.heavy && med.heavy.price, "medHeavy")}
+    </div>
+    <b style="margin-top:10px;display:inline-block">الروابط</b>
+    <div class="grid">
+      ${fld("رابط التوريا للدراسة", lk.theoryStudy, "lkStudy")}
+      ${fld("رابط نتيجة نظري", lk.theoryResult, "lkTheory")}
+      ${fld("رابط نتيجة عملي", lk.practicalResult, "lkPract")}
+    </div>
+    <b style="margin-top:10px;display:inline-block">الرخصة</b>
+    <div class="grid">
+      ${fld("استلام أول مرة", lf.first, "lfFirst")}
+      ${fld("تجديد", lf.renew, "lfRenew")}
+    </div>
+  `;
+  edt.querySelectorAll("input, textarea, select").forEach((x) => x.addEventListener("input", () => { schoolDirty = true; }));
+}
+
+$("btnSaveSchool").onclick = async () => {
+  const body = {
+    school: {
+      name: $("scName").value.trim(),
+      phone: $("scPhone").value.trim(),
+      owner: $("scOwner").value.trim(),
+      ownerPhone: $("scOwnerPhone").value.trim(),
+      address: $("scAddress").value.trim(),
+      workdays: $("scWorkdays").value.trim(),
+    },
+    prices: {
+      lesson: {
+        خصوصي: parseInt($("prLessonKh").value, 10) || undefined,
+        "شحن خفيف": parseInt($("prLessonSh").value, 10) || undefined,
+        ثقيل: parseInt($("prLessonTh").value, 10) || undefined,
+        باص: parseInt($("prLessonBus").value, 10) || undefined,
+        تراكتور: parseInt($("prLessonTr").value, 10) || undefined,
+      },
+      testFirst: {
+        خصوصي: parseInt($("prTestKh").value, 10) || undefined,
+        "شحن خفيف": parseInt($("prTestSh").value, 10) || undefined,
+        ثقيل: parseInt($("prTestTh").value, 10) || undefined,
+        باص: parseInt($("prTestBus").value, 10) || undefined,
+        تراكتور: parseInt($("prTestTr").value, 10) || undefined,
+      },
+    },
+    medical: {
+      private: { price: parseInt($("medPriv").value, 10) || 120 },
+      heavy: { price: parseInt($("medHeavy").value, 10) || 240 },
+    },
+    links: {
+      theoryStudy: $("lkStudy").value.trim(),
+      theoryResult: $("lkTheory").value.trim(),
+      practicalResult: $("lkPract").value.trim(),
+    },
+    licenseFees: {
+      first: parseInt($("lfFirst").value, 10) || 82,
+      renew: parseInt($("lfRenew").value, 10) || 202,
+    },
+  };
+  ["school", "prices", "medical", "links", "licenseFees"].forEach((k) => {
+    Object.keys(body[k]).forEach((kk) => { if (body[k][kk] === undefined) delete body[k][kk]; });
+  });
+  try {
+    const saved = await api("/panel/api/school", { method: "PUT", body });
+    if (saved.ok) { toast("تم حفظ معلومات المدرسة ✅"); schoolDirty = false; await refresh(); }
   } catch (e) { toast(e.message); }
 };
 

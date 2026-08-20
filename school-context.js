@@ -128,3 +128,90 @@ export const ownerStyle = `
 - إذا سألك "مين انتي" أو "من معي": "أنا سوزي سكرتيرتك، أنا معك، بشو بدك استاذ سمير."
 - حافظي على سرية معلومات الطلاب وأرقامهم، ولا تنشريها لأحد سواه.
 `;
+
+import { getStore } from "./store.js";
+
+const round = (n) => (typeof n === "number" ? n : n);
+const p = (n) => (n === 0 ? 0 : n || "");
+
+export async function getSchoolInfo() {
+  const s = await getStore();
+  const sc = s.school || {};
+  const ag = s.ages || {};
+  const med = s.medical || {};
+  const pr = s.prices || {};
+  const ppr = s.papers || {};
+  const ex = s.exams || {};
+  const lk = s.links || {};
+  const bus = s.busCourse || {};
+  const lf = s.licenseFees || {};
+  const nm = s.names || {};
+  const facts = [];
+
+  facts.push(`اسم المدرسة: ${sc.name || "مدرسة بديع لتعليم السياقة"}.`);
+  if (sc.address) facts.push(`العنوان: ${sc.address}.`);
+  if (sc.workdays) facts.push(`دوام: ${sc.workdays}.`);
+  facts.push(`هاتف المدرسة/المدير سمير: ${sc.phone || "0568444407"}.`);
+  if (sc.owner) facts.push(`صاحب المدرسة: ${sc.owner}، رقمه ${sc.ownerPhone || "0568444405"}.`);
+  if (nm.samira) facts.push(`المدربة الطالبات (ولمن سأل مدربة خصوصي): ${nm.samira} ${nm.samiraPhone ? "رقمها " + nm.samiraPhone : ""} وهي أخت المدير سمير.`);
+
+  if (pr.lesson) {
+    const rows = Object.entries(pr.lesson).map(([k, v]) => `${k} ${v}`).join("، ");
+    facts.push(`أسعار الدرس: ${rows}.`);
+  }
+  if (pr.testFirst) {
+    const rows = Object.entries(pr.testFirst).map(([k, v]) => `${k} ${v}`).join("، ");
+    facts.push(`تيست أول: ${rows}.`);
+  }
+  if (pr.testShahnRepeat) facts.push(`تيست شحن خفيف: أول ${pr.testShahnRepeat.first || 380}، تاني وما فوق ${pr.testShahnRepeat.repeat || 460}.`);
+  if (pr.total) {
+    const rows = Object.entries(pr.total).map(([k, v]) => `${k} ${v} شيكل (15 درس + تيست أول)`).join("، ");
+    facts.push(`التكلفة الكاملة للرخصة: ${rows}.`);
+  }
+
+  const ages = [];
+  if (ag.تراكتور) ages.push(`تراكتور ${ag.تراكتور}`);
+  if (ag.خصوصي) ages.push(`خصوصي ${ag.خصوصي}`);
+  if (ag["شحن خفيف"]) ages.push(`شحن خفيف ${ag["شحن خفيف"]}`);
+  if (ag.ثقيل) ages.push(`ثقيل ${ag.ثقيل}`);
+  if (ag.باص) ages.push(`باص ${ag.باص}`);
+  if (ag.اسعاف) ages.push(`اسعاف ${ag.اسعاف}`);
+  if (ages.length) facts.push(`العمر لاستلام الرخصه: ${ages.join("، ")}.`);
+  if (ag.خصوصي_تجهيز) facts.push(`خصوصي: ${ag.خصوصي_تجهيز}.`);
+  if (ag["شحن خفيف_ملاحظة"]) facts.push(`شحن خفيف: ${ag["شحن خفيف_ملاحظة"]}.`);
+
+  if (med.daily) facts.push(`الفحص الطبي: ${med.daily}${med.private ? `، خصوصي/تراكتور ${med.private.price} ${med.private.fast ? "بصيام" : "بدون صيام"}` : ""}${med.heavy ? `، شحن/باص ${med.heavy.price} ${med.heavy.fast ? "بصيام" : "بدون صيام"}` : ""}.`);
+  if (med.note) facts.push(med.note + ".");
+
+  if (ppr && Object.keys(ppr).length) {
+    const rows = Object.entries(ppr).map(([k, v]) => `${k}: ${v}`).join("؛ ");
+    facts.push(`الأوراق المطلوبة للمعاملة: ${rows}.`);
+  }
+
+  if (ex.practical) facts.push(`تيست عملي ${ex.practical}.`);
+  if (ex.theory) facts.push(`توريا كتابي ${ex.theory}.`);
+  if (ex.oral) facts.push(`شفهي ${ex.oral}.`);
+  if (ex.bookBefore) facts.push(`${ex.bookBefore}.`);
+  if (ex.theoryLocation) facts.push(`${ex.theoryLocation}.`);
+
+  if (lk.theoryStudy) facts.push(`رابط التوريا (للدراسة): ${lk.theoryStudy}`);
+  if (lk.theoryResult) facts.push(`رابط فحص نتيجة الامتحان النظري: ${lk.theoryResult}`);
+  if (lk.practicalResult) facts.push(`رابط فحص نتيجة الامتحان العملي: ${lk.practicalResult}`);
+
+  if (bus.price) facts.push(`دورة باص: ${bus.duration || "3 شهور"}، ${bus.schedule || ""}، ${bus.price} شيكل.`);
+  if (lf.payment) facts.push(lf.payment);
+  if (lf.first) facts.push(`استلام الرخصة أول مرة: ${lf.first} شيكل لمدة ${lf.firstYears || 2} سنتين وبتصير سائق جديد.`);
+  if (lf.renew) facts.push(`تجديد الرخصة: ${lf.renew} شيكل لمدة ${lf.renewYears || 5} سنوات.`);
+
+  if (s.trafficSigns) facts.push(s.trafficSigns);
+  if (s.oralExamRule) facts.push(`من يقدم شفهي: ${s.oralExamRule}.`);
+  if (s.newDriver) facts.push(s.newDriver);
+  if (s.contracts?.request) facts.push(`رخصة مقاولة: ${s.contracts.request}`);
+
+  const tr = nm.trainers || {};
+  const trainers = Object.entries(tr).map(([num, name]) => `${name} ${num}`).join("، ");
+  if (trainers) facts.push(`المدربون في المدرسة وأرقامهم: ${trainers}.`);
+
+  const block = facts.filter(Boolean).join("\n");
+  return schoolInfo + "\n\nأحدث البيانات الرسمية من إدارة المدرسة (تُحدَّث من لوحة التحكم، وهي المُعتمدة والأحدث، وإذا تعارضت مع أي رقم سابق فاعملي بها):\n" + block + "\n";
+}
