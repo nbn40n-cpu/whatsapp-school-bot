@@ -1,6 +1,9 @@
 import "dotenv/config";
 import { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers, downloadMediaMessage } from "@whiskeysockets/baileys";
 import { getAIResponse, transcribeAudio, textToSpeech, ERROR_REPLY } from "./ai.js";
+import { loadStore, getStore, saveStore } from "./store.js";
+import { bumpCounter, setLastError, setLastStart, pushEvent, trackChat } from "./stats.js";
+import { startPanel, setPaused, getControl } from "./panel/server.js";
 import path from "path";
 import fs from "fs";
 import http from "http";
@@ -8,12 +11,12 @@ import QR from "qrcode";
 
 const SCHOOL_NAME = "مدرسة بديع لتعليم السياقة";
 const PHONE = process.env.SCHOOL_PHONE || "0568444407";
-const FAMILY_NUMBERS = ["0568828240", "0569268867", "0568828238"];
-const FAMILY_NAMES = { "0568828240": "نهال أم محمد", "0569268867": "هدى أم آدم", "0568828238": "سميرة أم منذر" };
-const INTIMATE_NUMBERS = ["0598742654"];
-const BOSS_NUMBERS = ["0568444405"];
-const TRAINER_NUMBERS = ["0562400502", "0568030693", "0568331002", "0562400404"];
-const TRAINER_NAMES = { "0562400502": "رائد أبو صبحة", "0568030693": "عمار أبو قبيطة", "0568331002": "بديع الصغير", "0562400404": "منال" };
+let FAMILY_NUMBERS = ["0568828240", "0569268867", "0568828238"];
+let FAMILY_NAMES = { "0568828240": "نهال أم محمد", "0569268867": "هدى أم آدم", "0568828238": "سميرة أم منذر" };
+let INTIMATE_NUMBERS = ["0598742654"];
+let BOSS_NUMBERS = ["0568444405"];
+let TRAINER_NUMBERS = ["0562400502", "0568030693", "0568331002", "0562400404"];
+let TRAINER_NAMES = { "0562400502": "رائد أبو صبحة", "0568030693": "عمار أبو قبيطة", "0568331002": "بديع الصغير", "0562400404": "منال" };
 const TRAINER_OWNER_REPLY = "رح أتواصل مع الاستاذ سمير ويرجعلك بأقصى سرعة.";
 const TRAINER_GREETING_VARIANTS = [
   "أهلاً وسهلاً بالاستاذ {name}، نورتنا، الحمد لله، كيفك شو أخبارك؟ أنا المساعدة للمدير سمير، بشو بقدر أساعدك؟",
@@ -81,7 +84,7 @@ const lidToPn = new Map();
 const ERROR_REPLY_COOLDOWN = 30 * 60 * 1000;
 const authPath = path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH || ".", "baileys_auth");
 
-let status = { state: "starting", code: null, user: null };
+let status = { state: "starting", code: null, user: null, startedAt: Date.now() };
 http
   .createServer((req, res) => {
     res.setHeader("content-type", "application/json");
@@ -163,6 +166,7 @@ function sanitizeReply(text) {
 async function sendMsg(sock, to, text) {
   const clean = sanitizeReply(text);
   console.log(`📤 ${to}: ${clean.slice(0, 80)}`);
+  pushEvent({ dir: "out", from: to, text: clean, kind: "text" }).then(v => v);
   for (let i = 0; i < 3; i++) {
     try {
       const sent = await sock.sendMessage(to, { text: clean });
@@ -183,6 +187,7 @@ async function sendVoice(sock, to, text) {
       ptt: true,
     });
     if (sent?.key?.id) mySentIds.add(sent.key.id);
+    pushEvent({ dir: "out", from: to, text: short, kind: "voice" }).then(v => v);
     return;
   } catch (e) {
     console.error("🎙", e.message);
@@ -206,8 +211,12 @@ async function handleMsg(sock, msg, jid) {
   const trainer = isTrainer(jid, msg);
   const owner = isOwner(jid);
   const special = fam || intimate;
+  trackChat(jid);
   if (!text && content.audioMessage) {
     try {
+      bumpCounter("messages").then(v => v);
+      bumpCounter("voice").then(v => v);
+      pushEvent({ dir: "in", from: jid, text: "[صوت]", kind: "voice" });
       console.log(`🎧 ${jid}: بدء معالجة الصوت...`);
       const audioBuffer = await downloadMediaMessage(msg, "buffer", {});
       console.log(`🎧 ${jid}: تم تنزيل الصوت (${audioBuffer?.length || 0} bytes)`);
@@ -245,9 +254,13 @@ async function handleMsg(sock, msg, jid) {
   const key = jid + "_" + (msg.key?.id || text + "_" + (msg.messageTimestamp || 0));
   if (seen.has(key)) return;
   seen.add(key);
+  bumpCounter("messages").then(v => v);
+  pushEvent({ dir: "in", from: jid, text, kind: "text" });
   if (await routeText(sock, msg, jid, text)) return;
   const reply = await getAIResponse(text, fam, intimate, boss, trainer, false, jid);
   if (reply === ERROR_REPLY) {
+    bumpCounter("unanswered").then(v => v);
+    setLastError("ذكاء عجز عن الرد لـ" + jid);
     const now = Date.now();
     const last = lastErrorReply.get(jid) || 0;
     if (now - last < ERROR_REPLY_COOLDOWN) {
@@ -255,6 +268,8 @@ async function handleMsg(sock, msg, jid) {
       return;
     }
     lastErrorReply.set(jid, now);
+  } else {
+    bumpCounter("answered").then(v => v);
   }
   await sendMsg(sock, jid, reply);
 }
@@ -474,9 +489,61 @@ const FULL = {
   return null;
 }
 
+async function applyStoreNumbers() {
+  try {
+    const s = await loadStore();
+    if (!s || !s.numbers) return;
+    if (Array.isArray(s.numbers.family) && s.numbers.family.length) FAMILY_NUMBERS = [...s.numbers.family];
+    if (Array.isArray(s.numbers.intimate) && s.numbers.intimate.length) INTIMATE_NUMBERS = [...s.numbers.intimate];
+    if (Array.isArray(s.numbers.boss) && s.numbers.boss.length) BOSS_NUMBERS = [...s.numbers.boss];
+    if (Array.isArray(s.numbers.trainers) && s.numbers.trainers.length) TRAINER_NUMBERS = [...s.numbers.trainers];
+    if (s.names?.family) FAMILY_NAMES = { ...s.names.family };
+    if (s.names?.trainers) TRAINER_NAMES = { ...s.names.trainers };
+  } catch (e) {
+    console.error("⚠️ store numbers load failed (using defaults):", e.message);
+  }
+}
+
 async function start() {
+  status.startedAt = Date.now();
+  await applyStoreNumbers();
+  await setLastStart();
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
   let pairingCodeRequested = false;
+
+  const panel = await startPanel({
+    getBotState: () => ({
+      botState: getControl().paused ? "متوقف مؤقتاً" : "شغال",
+      whatsapp: status.state,
+      needsLink: status.state === "starting" || status.state === "closed",
+      state: status.state,
+      user: status.user || "",
+      paused: getControl().paused,
+      uptimeSeconds: Math.round((Date.now() - (status.startedAt || Date.now())) / 1000),
+    }),
+    onControl: async (action) => {
+      if (action === "pause") {
+        setPaused(true);
+        return { paused: true };
+      }
+      if (action === "resume") {
+        setPaused(false);
+        return { paused: false };
+      }
+      if (action === "restart") {
+        console.log("🔄 إعادة تشغيل من لوحة التحكم");
+        setTimeout(() => process.exit(0), 500);
+        return { restarting: true };
+      }
+      if (action === "relink") {
+        status.state = "relinking";
+        console.log("🔁 طلب إعادة ربط واتساب من لوحة التحكم");
+        setTimeout(() => process.exit(0), 300);
+        return { relinking: true };
+      }
+      throw new Error("إجراء غير معروف: " + action);
+    },
+  });
 
   const { version } = await fetchLatestBaileysVersion();
 
@@ -562,6 +629,7 @@ async function start() {
     if (connection === "close") {
       const reason = lastDisconnect?.error?.output?.statusCode;
       status.state = "closed";
+      setLastError(`قطع اتصال واتساب (${reason})`);
       if (reason === DisconnectReason.loggedOut) {
         try { fs.rmSync(authPath, { recursive: true, force: true }); } catch (_) {}
         console.log("\n🔁 واتساب أزال الجلسة، حذف الكسس وطلب كود اقتران جديد خلال 12 ثانية");
@@ -596,6 +664,13 @@ async function start() {
       const lastOwner = ownerActive.get(jid) || 0;
       if (Date.now() - lastOwner < OWNER_PAUSE_MS) {
         console.log(`🔕 صمت - المالك عم يرد في ${jid} خلال 10 دقايق، تأجيل الرد`);
+        continue;
+      }
+
+      if (getControl().paused) {
+        if (!m.key?.fromMe) {
+          try { await sock.sendMessage(jid, { text: "معذرة، البوت متوقف مؤقتاً من لوحة التحكم، رح يرجع عن قريب. ✋" }); } catch (_) {}
+        }
         continue;
       }
 

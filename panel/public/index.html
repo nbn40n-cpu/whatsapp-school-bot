@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة تحكم — مساعد المدرب سمير</title>
+<style>
+  :root {
+    --bg: #0f172a; --card: #1e293b; --card2: #25364d; --line: #334155;
+    --text: #e2e8f0; --muted: #94a3b8; --ok: #22c55e; --bad: #ef4444;
+    --warn: #f59e0b; --acc: #38bdf8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .hidden { display: none !important; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 18px; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 99px; font-size: 12px; font-weight: bold; }
+  .pill .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .dot.bad { background: var(--bad); box-shadow: 0 0 6px var(--bad); }
+  .dot.warn { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+
+  .login-box { max-width: 380px; margin: 12vh auto; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 28px; }
+  .login-box h2 { margin-bottom: 18px; text-align: center; }
+  input, textarea, select { width: 100%; padding: 10px 12px; background: var(--card2); border: 1px solid var(--line); border-radius: 9px; color: var(--text); font-size: 14px; }
+  input:focus, textarea:focus { outline: 2px solid var(--acc); }
+  label { display: block; margin: 10px 0 5px; font-size: 13px; color: var(--muted); }
+  button { cursor: pointer; border: none; border-radius: 9px; padding: 10px 16px; font-size: 14px; font-weight: bold; background: var(--acc); color: #06283d; }
+  button:hover { filter: brightness(1.1); }
+  button.sm { padding: 5px 10px; font-size: 12px; }
+  button.ghost { background: var(--card2); color: var(--text); border: 1px solid var(--line); }
+  button.danger { background: var(--bad); color: white; }
+  button.ok { background: var(--ok); color: white; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .err { color: var(--bad); font-size: 13px; margin-top: 10px; text-align: center; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .card .k { color: var(--muted); font-size: 12px; }
+  .card .v { font-size: 22px; font-weight: bold; margin-top: 6px; }
+  .card .v.small { font-size: 15px; }
+  .section { margin-top: 22px; }
+  .section h3 { font-size: 15px; color: var(--acc); margin-bottom: 10px; }
+  .log-item { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; margin-bottom: 6px; font-size: 13px; display: flex; justify-content: space-between; gap: 10px; }
+  .log-in { border-right: 3px solid var(--acc); }
+  .log-out { border-right: 3px solid var(--ok); }
+  .muted { color: var(--muted); font-size: 12px; }
+  .actions { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: normal; font-size: 12px; }
+  a { color: var(--acc); }
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--card2); border: 1px solid var(--line); padding: 10px 18px; border-radius: 10px; z-index: 50; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>🕹️ مساعد المدرب سمير</h1>
+    <div class="sub">لوحة تحكم بوت واتساب — مدرسة بديع لتعليم السياقة</div>
+  </div>
+  <div class="row">
+    <span class="pill" id="pillBot">البوت <span class="dot" id="dotBot"></span><span id="txtPillBot">—</span></span>
+    <span class="pill" id="pillWa">واتساب <span class="dot" id="dotWa"></span><span id="txtPillWa">—</span></span>
+    <button class="ghost sm" id="btnLogout">خروج</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- LOGIN -->
+  <div id="viewLogin" class="login-box hidden">
+    <h2>🔒 تسجيل الدخول</h2>
+    <label>كلمة المرور</label>
+    <input type="password" id="inPass" autocomplete="current-password" placeholder="كلمة مرور اللوحة">
+    <div style="margin-top:16px"><button id="btnLogin" style="width:100%">دخول</button></div>
+    <div class="err" id="loginErr"></div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="viewMain" class="hidden">
+
+    <div class="section" id="secDashboard">
+      <h3>حالة البوت</h3>
+      <div class="grid">
+        <div class="card"><div class="k">الرسائل اليوم</div><div class="v" id="cToday">—</div></div>
+        <div class="card"><div class="k">رسائل الأسبوع</div><div class="v" id="cWeek">—</div></div>
+        <div class="card"><div class="k">المحادثات</div><div class="v" id="cChats">—</div></div>
+        <div class="card"><div class="k">رد عليها البوت</div><div class="v" id="cAnswered">—</div></div>
+        <div class="card"><div class="k">بلا إجابة</div><div class="v" id="cUnanswered">—</div></div>
+        <div class="card"><div class="k">رسائل صوتية</div><div class="v" id="cVoice">—</div></div>
+      </div>
+      <div class="card actions" style="margin-top:12px">
+        <button class="ok" data-act="resume">▶ تشغيل البوت</button>
+        <button class="danger" data-act="pause">⏸ إيقاف مؤقت</button>
+        <button class="ghost" data-act="restart">🔄 إعادة تشغيل</button>
+        <button class="ghost" data-act="relink" title="يلغي جلسة الارتباط ويعيد الربط">📱 إعادة ربط واتساب</button>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <div class="k">آخر نشاط</div><div class="v small" id="cLastActivity">—</div>
+        <div class="k" style="margin-top:10px">آخر خطأ</div><div class="v small" id="cLastError" style="color:var(--bad)">—</div>
+        <div class="k" style="margin-top:10px">آخر تشغيل</div><div class="v small" id="cLastStart">—</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>آخر الرسائل</h3>
+      <div id="boxLogs"></div>
+    </div>
+
+  </div>
+</div>
+<div class="toast hidden" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let TOKEN = localStorage.getItem("panel_token") || "";
+let stateData = null;
+
+async function api(path, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  if (TOKEN && !path.endsWith("/login")) headers["Authorization"] = "Bearer " + TOKEN;
+  if (opts.body && typeof opts.body !== "string") headers["Content-Type"] = "application/json";
+  const res = await fetch(path, { ...opts, headers, body: opts.body && typeof opts.body !== "string" ? JSON.stringify(opts.body) : opts.body });
+  if (res.status === 401) { logout(); throw new Error("انتهت الجلسة"); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "خطأ " + res.status);
+  return data;
+}
+
+function toast(msg, ms = 2200) {
+  $("toast").textContent = msg;
+  $("toast").classList.remove("hidden");
+  setTimeout(() => $("toast").classList.add("hidden"), ms);
+}
+
+function showView(v) {
+  $("viewLogin").classList.toggle("hidden", v !== "login");
+  $("viewMain").classList.toggle("hidden", v !== "main");
+}
+
+function logout() { TOKEN = ""; localStorage.removeItem("panel_token"); showView("login"); }
+
+function setPill(kind, ok, txt) {
+  const el = $(kind === "bot" ? "txtPillBot" : "txtPillWa");
+  const dot = $(kind === "bot" ? "dotBot" : "dotWa");
+  const cls = ok === true ? "ok" : ok === false ? "bad" : "warn";
+  dot.className = "dot " + cls;
+  el.textContent = txt;
+}
+
+function renderDashboard(d) {
+  const s = d.state || {};
+  setPill("bot", true, s.botState || "شغال");
+  const waConnected = s.whatsapp === "connected" || s.whatsapp === "open";
+  setPill("wa", waConnected, waConnected ? "متصل" : (s.whatsapp === "needs-link" ? "يحتاج ربط" : "غير متصل"));
+
+  const st = d.stats || {};
+  $("cToday").textContent = (st.today && st.today.messages) || 0;
+  $("cWeek").textContent = (st.week && st.week.messages) || 0;
+  $("cChats").textContent = +(st.total && st.total.chats) || 0;
+  $("cAnswered").textContent = +(st.total && st.total.answered) || 0;
+  $("cUnanswered").textContent = +(st.total && st.total.unanswered) || 0;
+  $("cVoice").textContent = +(st.total && st.total.voice) || 0;
+  $("cLastActivity").textContent = st.lastActivity ? new Date(st.lastActivity).toLocaleString("ar-JO") : "—";
+  $("cLastError").textContent = (st.lastError || "لا توجد أخطاء") + (st.lastErrorAt ? " • " + new Date(st.lastErrorAt).toLocaleString("ar-JO") : "");
+  $("cLastStart").textContent = st.lastStart ? new Date(st.lastStart).toLocaleString("ar-JO") : "—";
+}
+
+function renderLogs(d) {
+  const logs = (d.stats && d.stats.logs) || [];
+  const box = $("boxLogs");
+  if (!logs.length) { box.innerHTML = '<div class="muted">لا رسائل بعد.</div>'; return; }
+  box.innerHTML = "";
+  for (const l of logs.slice(0, 30)) {
+    const div = document.createElement("div");
+    div.className = "log-item " + (l.dir === "in" ? "log-in" : "log-out");
+    const arrow = l.dir === "in" ? "⬅ استقبال" : "➡ رد";
+    div.innerHTML = `<div>${arrow} <b>${l.kind === "voice" ? "🎙 صوت" : "✉"}</b> ${l.dir === "out" ? "<span class='muted'>إلى</span> " + l.from : l.from}</div><div class="muted">${new Date(l.ts).toLocaleTimeString("ar-JO")}</div>`;
+    box.appendChild(div);
+  }
+}
+
+async function refresh() {
+  if (TOKEN) {
+    try {
+      const d = await api("/panel/api/state");
+      stateData = d;
+      renderDashboard(d);
+      renderLogs(d);
+      showView("main");
+    } catch (e) {
+      if (e.message !== "انتهت الجلسة") { showView("main"); toast("تعذر التحميل: " + e.message, 4000); }
+    }
+  }
+}
+
+$("btnLogin").onclick = async () => {
+  const pw = $("inPass").value;
+  try {
+    const d = await api("/panel/api/login", { method: "POST", body: { password: pw } });
+    TOKEN = d.token;
+    localStorage.setItem("panel_token", TOKEN);
+    $("loginErr").textContent = "";
+    $("inPass").value = "";
+    await refresh();
+  } catch (e) {
+    $("loginErr").textContent = e.message;
+  }
+};
+$("inPass").addEventListener("keydown", (e) => { if (e.key === "Enter") $("btnLogin").click(); });
+$("btnLogout").onclick = logout;
+
+document.querySelectorAll("[data-act]").forEach((btn) => {
+  btn.onclick = async () => {
+    const act = btn.dataset.act;
+    try {
+      const d = await api("/panel/api/control", { method: "POST", body: { action: act } });
+      toast(act === "pause" ? "البوت متوقف مؤقتاً ⏸" : act === "resume" ? "البوت يعمل ▶" : act === "restart" ? "جارٍ إعادة التشغيل 🔄" : "جارٍ إعادة الربط 📱", 3000);
+      setTimeout(refresh, 800);
+    } catch (e) {
+      toast(e.message, 3000);
+    }
+  };
+});
+
+refresh();
+setInterval(refresh, 8000);
+</script>
+</body>
+</html>
