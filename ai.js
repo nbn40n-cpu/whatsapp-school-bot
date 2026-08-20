@@ -4,9 +4,30 @@ import { promisify } from "node:util";
 import { readFile } from "node:fs/promises";
 import ffmpegPath from "ffmpeg-static";
 import { schoolInfo, familyStyle, intimateStyle, bossStyle, trainerStyle, ownerStyle } from "./school-context.js";
+import { getStore } from "./store.js";
 
 const execFileAsync = promisify(execFile);
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+async function aiSettings() {
+  const s = await getStore();
+  return {
+    primary: s.ai?.primaryModel || "groq/compound-mini",
+    fallbacks: Array.isArray(s.ai?.fallbackModels) && s.ai.fallbackModels.length ? s.ai.fallbackModels : ["groq/compound-mini"],
+    temperature: typeof s.ai?.temperature === "number" ? s.ai.temperature : 0.7,
+    maxTokens: typeof s.ai?.maxTokens === "number" ? s.ai.maxTokens : 200,
+    factTemperature: 0.4,
+    factMaxTokens: 250,
+    voice: s.voice?.voice || "ar-JO-SanaNeural",
+    rate: s.voice?.rate || "-8%",
+    pitch: s.voice?.pitch || "-1Hz",
+  };
+}
+
+async function getModels() {
+  const c = await aiSettings();
+  return [c.primary, ...c.fallbacks.filter((m) => m !== c.primary)];
+}
 
 async function runEdgeTTS(args) {
   const pythons = ["python3", "python"];
@@ -23,8 +44,6 @@ async function runEdgeTTS(args) {
 }
 
 export const ERROR_REPLY = "هلا، فيه مشكلة مؤقتة، جرب تراسل تاني بعد شوي أو اكتب مدير سمير.";
-const PRIMARY_MODEL = "groq/compound-mini";
-const FALLBACK_MODELS = ["groq/compound", "qwen/qwen3.6-27b", "groq/compound-mini"];
 const chatMemory = new Map();
 const MEMORY_LIMIT = 6;
 
@@ -63,7 +82,8 @@ export function cleanReply(reply) {
 export async function getAIResponse(userMessage, isFamily = false, isIntimate = false, isBoss = false, isTrainer = false, isOwner = false, chatId = "") {
   const system = (isOwner ? schoolInfo + ownerStyle : isBoss ? schoolInfo + bossStyle : isTrainer ? schoolInfo + trainerStyle : isIntimate ? schoolInfo + intimateStyle : isFamily ? schoolInfo + familyStyle : schoolInfo) + NO_THINKING;
   const history = (chatMemory.get(chatId) || []).slice(-MEMORY_LIMIT);
-  const models = [PRIMARY_MODEL, ...FALLBACK_MODELS.filter(m => m !== PRIMARY_MODEL)];
+  const settings = await aiSettings();
+  const models = await getModels();
   let lastError = null;
   for (const model of models) {
     try {
@@ -74,8 +94,8 @@ export async function getAIResponse(userMessage, isFamily = false, isIntimate = 
           ...history,
           { role: "user", content: userMessage },
         ],
-        temperature: 0.7,
-        max_tokens: 200,
+        temperature: settings.temperature,
+        max_tokens: settings.maxTokens,
       });
       const raw = completion.choices[0]?.message?.content || "";
       const reply = cleanReply(raw) || "هههه آسفة، ما فهمتك، عيدها بكلمات تانية؟";
@@ -83,7 +103,7 @@ export async function getAIResponse(userMessage, isFamily = false, isIntimate = 
       return reply;
     } catch (error) {
       lastError = error;
-      if (error?.status === 429 && model === PRIMARY_MODEL) {
+      if (error?.status === 429 && model === settings.primary) {
         let retried = false;
         for (let attempt = 0; attempt < 3; attempt++) {
           console.error(`⚠️ ${model} معدل محدود — ننتظر ${(attempt + 1) * 4} ثواني ونعيد المحاولة`);
@@ -96,8 +116,8 @@ export async function getAIResponse(userMessage, isFamily = false, isIntimate = 
                 ...history,
                 { role: "user", content: userMessage },
               ],
-              temperature: 0.7,
-              max_tokens: 200,
+              temperature: settings.temperature,
+              max_tokens: settings.maxTokens,
             });
             const raw = retry.choices[0]?.message?.content || "";
             const reply = cleanReply(raw) || "هههه آسفة، ما فهمتك، عيدها بكلمات تانية؟";
@@ -128,7 +148,8 @@ export async function getAIFactReply(fact, userMessage, isFamily = false, isInti
 """${fact}"""
 
 رد على سؤال المستخدم بالعامية الأردنية بشكل طبيعي وإنساني تلقائي كشخص حقيقي، ليس كبوت ولا روبوت. عبّر عن المعلومة بكلماتك الطبيعية وكأنك سكرتيرة بتجاوب أحد على واتساب، لا تسقط كقائمة نقاط، ولا تحيّد عن المعلومة الصحيحة ولا تغيّر أي رقم منها، ولا تضف معلومات غير موجودة. ركّز على سؤال المستخدم الأخير فقط.`;
-  const models = [PRIMARY_MODEL, ...FALLBACK_MODELS.filter(m => m !== PRIMARY_MODEL)];
+  const settings = await aiSettings();
+  const models = await getModels();
   for (const model of models) {
     try {
       const completion = await groq.chat.completions.create({
@@ -137,8 +158,8 @@ export async function getAIFactReply(fact, userMessage, isFamily = false, isInti
           { role: "system", content: system },
           { role: "user", content: userMessage },
         ],
-        temperature: 0.4,
-        max_tokens: 250,
+        temperature: settings.factTemperature,
+        max_tokens: settings.factMaxTokens,
       });
       const reply = completion.choices[0]?.message?.content || "";
       if (reply.trim()) return reply.trim();
@@ -424,8 +445,9 @@ export async function textToSpeech(text) {
   const mp3File = `${tmpDir}/tts_${uniq}_in.mp3`;
   const oggFile = `${tmpDir}/tts_${uniq}_out.ogg`;
   const natural = toColloquial(text);
+  const settings = await aiSettings();
   try {
-    await runEdgeTTS(["--voice", "ar-JO-SanaNeural", "--rate=-8%", "--pitch=-1Hz", "--text", natural, "--write-media", mp3File]);
+    await runEdgeTTS(["--voice", settings.voice, "--rate=" + settings.rate, "--pitch=" + settings.pitch, "--text", natural, "--write-media", mp3File]);
     await execFileAsync(ffmpegPath, ["-y", "-i", mp3File, "-c:a", "libopus", "-b:a", "48k", oggFile]);
     const buffer = await readFile(oggFile);
     return { buffer, mimetype: "audio/ogg; codecs=opus" };

@@ -85,6 +85,7 @@
       <button class="ghost sm" data-tab="dashboard">📊 لوحة الحالة</button>
       <button class="ghost sm" data-tab="replies">💬 الردود</button>
       <button class="ghost sm" data-tab="numbers">📞 الأرقام</button>
+      <button class="ghost sm" data-tab="settings">⚙️ الإعدادات</button>
     </div>
 
     <div class="section" id="secDashboard">
@@ -158,6 +159,34 @@
       </div>
       <p class="muted">عدّل الأرقام والأسماء ثم احفظ. كل فئة لها قائمة تُطبَّق مباشرة على البوت.</p>
       <div id="numbersEditor"></div>
+    </div>
+
+    <div class="section hidden" id="secSettings">
+      <div class="row" style="align-items:center;justify-content:space-between">
+        <h3 style="margin:0">⚙️ إعدادات الذكاء والصوت</h3>
+        <button class="ok sm" id="btnSaveAi">💾 حفظ الإعدادات</button>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <b>الذكاء الاصطناعي (Groq)</b>
+        <label>الموديل الأساسي</label>
+        <input id="aiPrimary" placeholder="groq/compound-mini">
+        <label>الموديلات الاحتياطية (افصل بينها بفاصلة)</label>
+        <input id="aiFallbacks" placeholder="groq/compound, qwen/qwen3.6-27b">
+        <label>درجة الحرارة (0 - 2)</label>
+        <input id="aiTemp" type="number" step="0.1" min="0" max="2">
+        <label>الحد الأقصى للرد (max tokens)</label>
+        <input id="aiMax" type="number" min="10">
+      </div>
+      <div class="card" style="margin-top:12px">
+        <b>الصوت (edge-tts)</b>
+        <label>الصوت</label>
+        <input id="aiVoice" placeholder="ar-JO-SanaNeural">
+        <label>السرعة</label>
+        <input id="aiRate" placeholder="-8%">
+        <label>الطبقة (pitch)</label>
+        <input id="aiPitch" placeholder="-1Hz">
+        <label><input type="checkbox" id="aiReplyVoice" style="width:auto"> الرد على الرسائل الصوتية</label>
+      </div>
     </div>
 
   </div>
@@ -242,6 +271,7 @@ async function refresh() {
       renderLogs(d);
       renderReplies();
       if (!numbersDirty) renderNumbers();
+      if (!settingsDirty) renderSettings();
       showView("main");
     } catch (e) {
       if (e.message !== "انتهت الجلسة") { showView("main"); toast("تعذر التحميل: " + e.message, 4000); }
@@ -257,6 +287,7 @@ function showTab(tab) {
   $("secDashboard").classList.toggle("hidden", tab !== "dashboard");
   $("secReplies").classList.toggle("hidden", tab !== "replies");
   $("secNumbers").classList.toggle("hidden", tab !== "numbers");
+  $("secSettings").classList.toggle("hidden", tab !== "settings");
   document.querySelectorAll("[data-tab]").forEach((b) => {
     const on = b.dataset.tab === tab;
     b.style.background = on ? "var(--acc)" : "";
@@ -450,6 +481,42 @@ $("btnSaveNumbers").onclick = async () => {
   try {
     const saved = await api("/panel/api/numbers", { method: "PUT", body: out });
     if (saved.ok) { toast("تم حفظ الأرقام ✅"); numbersDirty = false; stateData = saved; await refresh(); }
+  } catch (e) { toast(e.message); }
+};
+
+let settingsDirty = false;
+function renderSettings() {
+  const ai = (stateData && stateData.ai) || {};
+  const voice = (stateData && stateData.voice) || {};
+  $("aiPrimary").value = ai.primaryModel || "";
+  $("aiFallbacks").value = (ai.fallbackModels || []).join(",");
+  $("aiTemp").value = ai.temperature ?? "";
+  $("aiMax").value = ai.maxTokens ?? "";
+  $("aiVoice").value = voice.voice || "";
+  $("aiRate").value = voice.rate || "";
+  $("aiPitch").value = voice.pitch || "";
+  $("aiReplyVoice").checked = voice.replyToVoice !== false;
+  $("aiPrimary").oninput = markSettings; $("aiFallbacks").oninput = markSettings;
+  $("aiTemp").oninput = markSettings; $("aiMax").oninput = markSettings;
+  $("aiVoice").oninput = markSettings; $("aiRate").oninput = markSettings;
+  $("aiPitch").oninput = markSettings; $("aiReplyVoice").onchange = markSettings;
+}
+function markSettings() { settingsDirty = true; }
+
+$("btnSaveAi").onclick = async () => {
+  const body = {
+    primaryModel: $("aiPrimary").value.trim(),
+    fallbackModels: $("aiFallbacks").value.split(",").map((s) => s.trim()).filter(Boolean),
+    temperature: parseFloat($("aiTemp").value),
+    maxTokens: parseInt($("aiMax").value, 10),
+    voice: $("aiVoice").value.trim(),
+    rate: $("aiRate").value.trim(),
+    pitch: $("aiPitch").value.trim(),
+    replyToVoice: $("aiReplyVoice").checked,
+  };
+  try {
+    const saved = await api("/panel/api/ai", { method: "PUT", body });
+    if (saved.ok) { toast("تم حفظ الإعدادات ✅"); settingsDirty = false; stateData.ai = saved.ai; stateData.voice = saved.voice; await refresh(); }
   } catch (e) { toast(e.message); }
 };
 

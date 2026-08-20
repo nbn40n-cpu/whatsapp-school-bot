@@ -96,7 +96,7 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
       const b = getBotState();
       const stats = await getStats();
       const s = await getStore();
-      res.json({ ok: true, state: b, stats, control: { paused: control.paused, pausedAt: control.pausedAt }, faq: s.faq || [], categories: s.categories || [], numbers: s.numbers || {}, names: s.names || {} });
+      res.json({ ok: true, state: b, stats, control: { paused: control.paused, pausedAt: control.pausedAt }, faq: s.faq || [], categories: s.categories || [], numbers: s.numbers || {}, names: s.names || {}, ai: s.ai || {}, voice: s.voice || {} });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
@@ -129,6 +129,30 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
       if (onConfigChanged) await onConfigChanged(upd);
       const s = await getStore();
       res.json({ ok: true, config: s });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.put("/panel/api/ai", auth, async (req, res) => {
+    try {
+      const body = req.body || {};
+      const s = await getStore();
+      const ai = s.ai = s.ai || {};
+      if (typeof body.primaryModel === "string" && body.primaryModel.trim()) ai.primaryModel = body.primaryModel.trim();
+      if (Array.isArray(body.fallbackModels)) ai.fallbackModels = body.fallbackModels.map(String).filter(Boolean);
+      if (typeof body.temperature === "number" && body.temperature >= 0 && body.temperature <= 2) ai.temperature = body.temperature;
+      if (typeof body.maxTokens === "number" && body.maxTokens > 0) ai.maxTokens = Math.round(body.maxTokens);
+      if (typeof body.whisperModel === "string" && body.whisperModel.trim()) ai.whisperModel = body.whisperModel.trim();
+      const voice = s.voice = s.voice || {};
+      if (typeof body.voice === "string" && body.voice.trim()) voice.voice = body.voice.trim();
+      if (typeof body.rate === "string" && body.rate.trim()) voice.rate = body.rate.trim();
+      if (typeof body.pitch === "string" && body.pitch.trim()) voice.pitch = body.pitch.trim();
+      if (typeof body.replyToVoice === "boolean") voice.replyToVoice = body.replyToVoice;
+      if (typeof body.maxSentences === "number" && body.maxSentences >= 1) voice.maxSentences = Math.round(body.maxSentences);
+      const upd = await updateStore(() => s);
+      await getStore().then(async () => { if (onConfigChanged) await onConfigChanged(upd); });
+      res.json({ ok: true, ai: upd.ai, voice: upd.voice });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
