@@ -59,7 +59,7 @@ export async function startPanel({ getBotState, onControl }) {
   const express = (await import("express")).default;
   const app = express();
   const secret = randomBytes(32).toString("hex");
-  const port = process.env.PANEL_PORT || process.env.PANEL_HTTP_PORT || 4000;
+  const port = process.env.PANEL_PORT || process.env.PORT || 4000;
   const password = process.env.PANEL_PASSWORD || "";
 
   app.disable("x-powered-by");
@@ -137,7 +137,11 @@ export async function startPanel({ getBotState, onControl }) {
 
   app.get("/panel", (req, res) => res.sendFile(path.join(publicDir, "index.html")));
   app.get("/panel/", (req, res) => res.redirect("/panel"));
-  app.get("/", (req, res) => res.redirect("/panel"));
+
+  app.get(["/", "/status"], (req, res) => {
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify(getBotState()));
+  });
 
   return new Promise((resolve) => {
     const server = app.listen(port, () => {

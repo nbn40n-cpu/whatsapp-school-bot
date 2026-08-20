@@ -6,7 +6,6 @@ import { bumpCounter, setLastError, setLastStart, pushEvent, trackChat } from ".
 import { startPanel, setPaused, getControl } from "./panel/server.js";
 import path from "path";
 import fs from "fs";
-import http from "http";
 import QR from "qrcode";
 
 const SCHOOL_NAME = "مدرسة بديع لتعليم السياقة";
@@ -85,12 +84,6 @@ const ERROR_REPLY_COOLDOWN = 30 * 60 * 1000;
 const authPath = path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH || ".", "baileys_auth");
 
 let status = { state: "starting", code: null, user: null, startedAt: Date.now() };
-http
-  .createServer((req, res) => {
-    res.setHeader("content-type", "application/json");
-    res.end(JSON.stringify(status));
-  })
-  .listen(process.env.PORT || 3000, () => console.log("🌐 status on port " + (process.env.PORT || 3000)));
 
 function isPersonal(from) { return from && !from.endsWith("@g.us") && from !== "status@broadcast"; }
 function isGreeting(text) { return GREETING_PATTERN.test(text.trim()); }
@@ -504,33 +497,33 @@ async function applyStoreNumbers() {
   }
 }
 
+let panelStarted = false;
 async function start() {
   status.startedAt = Date.now();
   await applyStoreNumbers();
   await setLastStart();
-  const { state, saveCreds } = await useMultiFileAuthState(authPath);
-  let pairingCodeRequested = false;
-
-  const panel = await startPanel({
-    getBotState: () => ({
-      botState: getControl().paused ? "متوقف مؤقتاً" : "شغال",
-      whatsapp: status.state,
-      needsLink: status.state === "starting" || status.state === "closed",
-      state: status.state,
-      user: status.user || "",
-      paused: getControl().paused,
-      uptimeSeconds: Math.round((Date.now() - (status.startedAt || Date.now())) / 1000),
-    }),
-    onControl: async (action) => {
-      if (action === "pause") {
-        setPaused(true);
-        return { paused: true };
-      }
-      if (action === "resume") {
-        setPaused(false);
-        return { paused: false };
-      }
-      if (action === "restart") {
+  if (!panelStarted) {
+    panelStarted = true;
+    await startPanel({
+      getBotState: () => ({
+        botState: getControl().paused ? "متوقف مؤقتاً" : "شغال",
+        whatsapp: status.state,
+        needsLink: status.state === "starting" || status.state === "closed",
+        state: status.state,
+        user: status.user || "",
+        paused: getControl().paused,
+        uptimeSeconds: Math.round((Date.now() - (status.startedAt || Date.now())) / 1000),
+      }),
+      onControl: async (action) => {
+        if (action === "pause") {
+          setPaused(true);
+          return { paused: true };
+        }
+        if (action === "resume") {
+          setPaused(false);
+          return { paused: false };
+        }
+        if (action === "restart") {
         console.log("🔄 إعادة تشغيل من لوحة التحكم");
         setTimeout(() => process.exit(0), 500);
         return { restarting: true };
@@ -544,6 +537,10 @@ async function start() {
       throw new Error("إجراء غير معروف: " + action);
     },
   });
+  }
+
+  const { state, saveCreds } = await useMultiFileAuthState(authPath);
+  let pairingCodeRequested = false;
 
   const { version } = await fetchLatestBaileysVersion();
 
