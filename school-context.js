@@ -134,6 +134,18 @@ import { getStore } from "./store.js";
 const round = (n) => (typeof n === "number" ? n : n);
 const p = (n) => (n === 0 ? 0 : n || "");
 
+export async function getStyles() {
+  const s = await getStore();
+  const st = s.styles || {};
+  return {
+    family: st.family || familyStyle,
+    intimate: st.intimate || intimateStyle,
+    boss: st.boss || bossStyle,
+    trainer: st.trainer || trainerStyle,
+    owner: st.owner || ownerStyle,
+  };
+}
+
 export async function getSchoolInfo() {
   const s = await getStore();
   const sc = s.school || {};

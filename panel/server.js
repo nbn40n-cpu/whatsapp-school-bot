@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getStore, updateStore } from "../store.js";
 import { getStats } from "../stats.js";
+import { getStyles } from "../school-context.js";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -96,7 +97,7 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
       const b = getBotState();
       const stats = await getStats();
       const s = await getStore();
-      res.json({ ok: true, state: b, stats, control: { paused: control.paused, pausedAt: control.pausedAt }, faq: s.faq || [], categories: s.categories || [], numbers: s.numbers || {}, names: s.names || {}, ai: s.ai || {}, voice: s.voice || {}, school: s.school || {}, prices: s.prices || {}, medical: s.medical || {}, links: s.links || {}, papers: s.papers || {}, licenseFees: s.licenseFees || {} });
+      res.json({ ok: true, state: b, stats, control: { paused: control.paused, pausedAt: control.pausedAt }, faq: s.faq || [], categories: s.categories || [], numbers: s.numbers || {}, names: s.names || {}, ai: s.ai || {}, voice: s.voice || {}, school: s.school || {}, prices: s.prices || {}, medical: s.medical || {}, links: s.links || {}, papers: s.papers || {}, licenseFees: s.licenseFees || {}, styles: await getStyles() });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
@@ -138,6 +139,26 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
   for (const k of ["school", "ages", "medical", "prices", "papers", "exams", "links", "busCourse", "licenseFees", "trafficSigns", "oralExamRule", "newDriver", "contracts", "names"]) {
     scopedSections[k] = 1;
   }
+
+  app.put("/panel/api/styles", auth, async (req, res) => {
+    try {
+      const body = req.body || {};
+      const allow = ["family", "intimate", "boss", "trainer", "owner"];
+      const keys = Object.keys(body);
+      if (!keys.length || keys.some((k) => !allow.includes(k)) || keys.some((k) => typeof body[k] !== "string")) {
+        return res.status(400).json({ ok: false, error: "styles غير صحيحة" });
+      }
+      await updateStore((s) => {
+        s.styles = s.styles || {};
+        for (const k of keys) s.styles[k] = body[k].trim();
+        return s;
+      });
+      if (onConfigChanged) await onConfigChanged();
+      res.json({ ok: true, styles: await getStyles() });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
 
   app.put("/panel/api/school", auth, async (req, res) => {
     try {

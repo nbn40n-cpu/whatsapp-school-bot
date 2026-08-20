@@ -87,6 +87,7 @@
       <button class="ghost sm" data-tab="numbers">📞 الأرقام</button>
       <button class="ghost sm" data-tab="settings">⚙️ الإعدادات</button>
       <button class="ghost sm" data-tab="school">🏫 المدرسة</button>
+      <button class="ghost sm" data-tab="styles">🎭 الشخصيات</button>
     </div>
 
     <div class="section" id="secDashboard">
@@ -199,6 +200,34 @@
       <div class="card" style="margin-top:12px" id="schoolEditor"></div>
     </div>
 
+    <div class="section hidden" id="secStyles">
+      <div class="row" style="align-items:center;justify-content:space-between">
+        <h3 style="margin:0">🎭 أسلوب الرد لكل فئة</h3>
+        <button class="ok sm" id="btnSaveStyles">💾 حفظ الأساليب</button>
+      </div>
+      <p class="muted">هنا تعدّل كيف يرد البوت على كل فئة: لأفراد عائلة المدير (زوجاته)، والانتيمة، وصاحب المدرسة، والمدربين، والمدير سمير. الأسلوب نصّي يُقرأه الذكاء كتعليمات — اعمل نسخة مما فيه قبل التغيير.</p>
+      <div class="card" style="margin-top:12px">
+        <label>👨‍👩‍👧 عائلة المدير (الزوجات) — family</label>
+        <textarea id="stFamily" rows="6"></textarea>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <label>💕 الانتيمة — intimate</label>
+        <textarea id="stIntimate" rows="6"></textarea>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <label>🧔 صاحب المدرسة — boss</label>
+        <textarea id="stBoss" rows="5"></textarea>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <label>🎓 المدربون — trainer</label>
+        <textarea id="stTrainer" rows="5"></textarea>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <label>👤 المدير سمير — owner</label>
+        <textarea id="stOwner" rows="5"></textarea>
+      </div>
+    </div>
+
   </div>
 </div>
 <div class="toast hidden" id="toast"></div>
@@ -283,6 +312,7 @@ async function refresh() {
       if (!numbersDirty) renderNumbers();
       if (!settingsDirty) renderSettings();
       if (!schoolDirty) renderSchool();
+      if (!stylesDirty) renderStyles();
       showView("main");
     } catch (e) {
       if (e.message !== "انتهت الجلسة") { showView("main"); toast("تعذر التحميل: " + e.message, 4000); }
@@ -300,6 +330,7 @@ function showTab(tab) {
   $("secNumbers").classList.toggle("hidden", tab !== "numbers");
   $("secSettings").classList.toggle("hidden", tab !== "settings");
   $("secSchool").classList.toggle("hidden", tab !== "school");
+  $("secStyles").classList.toggle("hidden", tab !== "styles");
   document.querySelectorAll("[data-tab]").forEach((b) => {
     const on = b.dataset.tab === tab;
     b.style.background = on ? "var(--acc)" : "";
@@ -633,6 +664,34 @@ $("btnSaveSchool").onclick = async () => {
   try {
     const saved = await api("/panel/api/school", { method: "PUT", body });
     if (saved.ok) { toast("تم حفظ معلومات المدرسة ✅"); schoolDirty = false; await refresh(); }
+  } catch (e) { toast(e.message); }
+};
+
+let stylesDirty = false;
+function renderStyles() {
+  const st = (stateData && stateData.styles) || {};
+  $("stFamily").value = st.family || "";
+  $("stIntimate").value = st.intimate || "";
+  $("stBoss").value = st.boss || "";
+  $("stTrainer").value = st.trainer || "";
+  $("stOwner").value = st.owner || "";
+  ["stFamily", "stIntimate", "stBoss", "stTrainer", "stOwner"].forEach((id) => {
+    $(id).addEventListener("input", markStyles);
+  });
+}
+function markStyles() { stylesDirty = true; }
+
+$("btnSaveStyles").onclick = async () => {
+  const body = {
+    family: $("stFamily").value,
+    intimate: $("stIntimate").value,
+    boss: $("stBoss").value,
+    trainer: $("stTrainer").value,
+    owner: $("stOwner").value,
+  };
+  try {
+    const saved = await api("/panel/api/styles", { method: "PUT", body });
+    if (saved.ok) { toast("تم حفظ الأساليب ✅"); stylesDirty = false; await refresh(); }
   } catch (e) { toast(e.message); }
 };
 
