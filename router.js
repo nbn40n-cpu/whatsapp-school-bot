@@ -30,10 +30,17 @@ function matchEntry(raw, norm, e) {
   });
 }
 
+// مدخلات ظلّتها handleFAQ بمنطق أذكى (سياق النوع) — محظورة من المخزن نهائياً حتى لو رجعت active
+const STORE_SKIP_IDS = new Set([
+  "faq-005", "faq-008", "faq-010", "faq-011", "faq-012",
+  "faq-017", "faq-018", "faq-019", "faq-020", "faq-021", "faq-022",
+  "faq-mt1xm6jg-6n9",
+]);
+
 export async function findStoreReply(raw, norm) {
   try {
     const s = await getStore();
-    const faqs = (s.faq || []).filter((f) => f && f.managed && f.active !== false);
+    const faqs = (s.faq || []).filter((f) => f && f.managed && f.active !== false && !STORE_SKIP_IDS.has(f.id));
     for (const f of faqs) {
       if (matchEntry(raw, norm, f)) {
         return { reply: f.reply || "", faq: f };
