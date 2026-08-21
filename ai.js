@@ -12,8 +12,8 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 async function aiSettings() {
   const s = await getStore();
   return {
-    primary: s.ai?.primaryModel || "groq/compound-mini",
-    fallbacks: Array.isArray(s.ai?.fallbackModels) && s.ai.fallbackModels.length ? s.ai.fallbackModels : ["groq/compound-mini"],
+    primary: s.ai?.primaryModel || "groq/compound",
+    fallbacks: Array.isArray(s.ai?.fallbackModels) && s.ai.fallbackModels.length ? s.ai.fallbackModels : ["qwen/qwen3.6-27b", "groq/compound-mini"],
     temperature: typeof s.ai?.temperature === "number" ? s.ai.temperature : 0.7,
     maxTokens: typeof s.ai?.maxTokens === "number" ? s.ai.maxTokens : 200,
     factTemperature: 0.4,
@@ -45,16 +45,20 @@ async function runEdgeTTS(args) {
 
 export const ERROR_REPLY = "هلا، فيه مشكلة مؤقتة، جرب تراسل تاني بعد شوي أو اكتب مدير سمير.";
 const chatMemory = new Map();
-const MEMORY_LIMIT = 6;
+const MEMORY_LIMIT = 4;
+const CONFUSED_REPLY = "هههه آسفة، ما فهمتك، عيدها بكلمات ثانية؟";
 
 const NO_THINKING = `
 
-مهم جداً: أجب فقط بالنص النهائي لردك على واتساب بالعامية الأردنية. لا تكتب أي قسم "thinking" أو "reasoning" أو "analysis" أو "تحليل" أو أي أفكار داخلية أو تعليمات أو شرح للطريقة التي تستخدمها، ولا تكرر كلام المستخدم. لا تبدأ أي رد بكلمة "User" أو "المستخدم" أو "تحليل" أو "Context" أو "السياق". ركّز على آخر رسالة للمستخدم وأجب عليها وحدها فوراً. الرد يجب أن يكون جملة أو جملتين طبيعيتين فقط.
+مهم جداً: أجبي فقط بالنص النهائي لردك على واتساب بالعامية الأردنية، جملة أو جملتين. لا تكتبي أي قسم thinking أو تحليل أو أفكار داخلية أو تعليمات أو تكرار لكلام المستخدم، ولا تبدئي بكلمة User أو المستخدم أو Context.
 
 `;
 
 export function cleanReply(reply) {
   let s = (reply || "").trim();
+  s = s.replace(/<think>[\s\S]*?<\/think>/gi, " ");
+  const openThink = s.search(/<think>/i);
+  if (openThink !== -1) s = s.slice(0, openThink);
   const ti = s.search(/thinking/i);
   if (ti !== -1) {
     const after = s.slice(ti + 8);
@@ -86,42 +90,40 @@ export async function getAIResponse(userMessage, isFamily = false, isIntimate = 
   const settings = await aiSettings();
   const models = await getModels();
   let lastError = null;
+  let gotEmpty = false;
+  const ask = (model) => groq.chat.completions.create({
+    model,
+    messages: [
+      { role: "system", content: system },
+      ...history,
+      { role: "user", content: userMessage },
+    ],
+    temperature: settings.temperature,
+    max_tokens: /qwen/i.test(model) ? Math.max(settings.maxTokens, 2000) : settings.maxTokens,
+  });
+  const isDailyLimit = (e) => /per day|\(RPD\)/i.test(e?.error?.message || e?.message || "");
   for (const model of models) {
     try {
-      const completion = await groq.chat.completions.create({
-        model,
-        messages: [
-          { role: "system", content: system },
-          ...history,
-          { role: "user", content: userMessage },
-        ],
-        temperature: settings.temperature,
-        max_tokens: settings.maxTokens,
-      });
-      const raw = completion.choices[0]?.message?.content || "";
-      const reply = cleanReply(raw) || "هههه آسفة، ما فهمتك، عيدها بكلمات تانية؟";
+      const completion = await ask(model);
+      const reply = cleanReply(completion.choices[0]?.message?.content || "");
+      if (!reply) { gotEmpty = true; console.error(`⚠️ ${model} رد فارغ/منفلتر — ننتقل للموديل التالي`); continue; }
       chatMemory.set(chatId, [...history, { role: "user", content: userMessage }, { role: "assistant", content: reply }].slice(-MEMORY_LIMIT));
       return reply;
     } catch (error) {
       lastError = error;
+      if (isDailyLimit(error)) {
+        console.error(`⚠️ ${model} خلص حده اليومي — ننتقل للموديل التالي`);
+        continue;
+      }
       if (error?.status === 429 && model === settings.primary) {
         let retried = false;
-        for (let attempt = 0; attempt < 3; attempt++) {
-          console.error(`⚠️ ${model} معدل محدود — ننتظر ${(attempt + 1) * 4} ثواني ونعيد المحاولة`);
-          await new Promise(r => setTimeout(r, (attempt + 1) * 4000));
+        for (let attempt = 0; attempt < 2; attempt++) {
+          console.error(`⚠️ ${model} معدل محدود — ننتظر ${(attempt + 1) * 2} ثواني ونعيد المحاولة`);
+          await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
           try {
-            const retry = await groq.chat.completions.create({
-              model,
-              messages: [
-                { role: "system", content: system },
-                ...history,
-                { role: "user", content: userMessage },
-              ],
-              temperature: settings.temperature,
-              max_tokens: settings.maxTokens,
-            });
-            const raw = retry.choices[0]?.message?.content || "";
-            const reply = cleanReply(raw) || "هههه آسفة، ما فهمتك، عيدها بكلمات تانية؟";
+            const retry = await ask(model);
+            const reply = cleanReply(retry.choices[0]?.message?.content || "");
+            if (!reply) { gotEmpty = true; break; }
             chatMemory.set(chatId, [...history, { role: "user", content: userMessage }, { role: "assistant", content: reply }].slice(-MEMORY_LIMIT));
             return reply;
           } catch (retryErr) {
@@ -138,7 +140,7 @@ export async function getAIResponse(userMessage, isFamily = false, isIntimate = 
     }
   }
   console.error("AI Error:", lastError?.message);
-  return ERROR_REPLY;
+  return gotEmpty ? CONFUSED_REPLY : ERROR_REPLY;
 }
 
 export async function getAIFactReply(fact, userMessage, isFamily = false, isIntimate = false, isBoss = false, isTrainer = false, chatId = "") {

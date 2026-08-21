@@ -353,9 +353,15 @@ function showTab(tab) {
 }
 document.querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => showTab(b.dataset.tab));
 
-function renderCatOptions(sel, selected) {
+function renderCatOptions(sel, selected, allLabel) {
   const cats = (stateData && stateData.categories) || [];
   sel.innerHTML = "";
+  if (allLabel) {
+    const o = document.createElement("option");
+    o.value = ""; o.textContent = allLabel;
+    if (!selected) o.selected = true;
+    sel.appendChild(o);
+  }
   for (const c of cats || []) {
     const o = document.createElement("option");
     o.value = c; o.textContent = c;
@@ -364,9 +370,13 @@ function renderCatOptions(sel, selected) {
   }
 }
 
+let faqSelectedCat = "";
+
 function renderReplies() {
   const faq = (stateData && stateData.faq) || [];
-  renderCatOptions($("fqCat"), "");
+  const currentVal = $("fqCat").value;
+  if (currentVal) faqSelectedCat = currentVal;
+  renderCatOptions($("fqCat"), faqSelectedCat, "كل التصنيفات");
   const search = ($("fqSearch").value || "").trim();
   const cat = $("fqCat").value;
   let list = faq.filter((f) => {
