@@ -149,6 +149,7 @@ export async function getSchoolInfo() {
 
   if (med.daily) facts.push(`الفحص الطبي: ${med.daily}${med.private ? `، خصوصي/تراكتور ${med.private.price} ${med.private.fast ? "بصيام" : "بدون صيام"}` : ""}${med.heavy ? `، شحن/باص ${med.heavy.price} ${med.heavy.fast ? "بصيام" : "بدون صيام"}` : ""}.`);
   if (med.note) facts.push(med.note + ".");
+  if (lf && lf.payment) facts.push(lf.payment + ".");
 
   if (ppr && Object.keys(ppr).length) {
     const rows = Object.entries(ppr).map(([k, v]) => `${k}: ${v}`).join("؛ ");
