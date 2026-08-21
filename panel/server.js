@@ -97,7 +97,7 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
       const b = getBotState();
       const stats = await getStats();
       const s = await getStore();
-      res.json({ ok: true, state: b, stats, control: { paused: control.paused, pausedAt: control.pausedAt }, faq: s.faq || [], categories: s.categories || [], numbers: s.numbers || {}, names: s.names || {}, ai: s.ai || {}, voice: s.voice || {}, school: s.school || {}, prices: s.prices || {}, medical: s.medical || {}, links: s.links || {}, papers: s.papers || {}, licenseFees: s.licenseFees || {}, styles: await getStyles() });
+      res.json({ ok: true, state: b, stats, control: { paused: control.paused, pausedAt: control.pausedAt }, faq: s.faq || [], categories: s.categories || [], numbers: s.numbers || {}, names: s.names || {}, ai: s.ai || {}, voice: s.voice || {}, school: s.school || {}, prices: s.prices || {}, medical: s.medical || {}, links: s.links || {}, papers: s.papers || {}, licenseFees: s.licenseFees || {}, styles: await getStyles(), learning: s.learning || { examples: [], lessons: [] }, suggestions: s.suggestions || [] });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
@@ -235,6 +235,86 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
   });
 
   const genId = () => "faq-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e4).toString(36);
+  const normTriggers = (v) => {
+    const arr = Array.isArray(v) ? v : String(v || "").split(/[،,\n]/);
+    return arr.map((x) => String(x).trim()).filter(Boolean);
+  };
+
+  app.post("/panel/api/learning/:id", auth, async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      const action = String(req.body?.action || "");
+      await updateStore((s) => {
+        s.learning = s.learning || { examples: [], lessons: [] };
+        s.learning.examples = s.learning.examples || [];
+        s.learning.lessons = s.learning.lessons || [];
+        const ex = s.learning.examples.find((x) => x.id === id);
+        if (!ex) throw new Error("المثال غير موجود");
+        if (action === "accept") {
+          ex.status = "accepted";
+          s.learning.lessons.push({ id: "ls-" + Date.now().toString(36), q: ex.q || "", a: ex.ownerA || "", note: String(req.body?.note || ""), status: "accepted", ts: Date.now() });
+          if (s.learning.lessons.length > 40) s.learning.lessons = s.learning.lessons.slice(-40);
+        } else if (action === "reject") {
+          ex.status = "rejected";
+        } else if (action === "delete") {
+          s.learning.examples = s.learning.examples.filter((x) => x.id !== id);
+        } else {
+          throw new Error("إجراء غير معروف");
+        }
+        return s;
+      });
+      if (onConfigChanged) await onConfigChanged();
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post("/panel/api/lesson-delete/:id", auth, async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      await updateStore((s) => {
+        s.learning = s.learning || { examples: [], lessons: [] };
+        s.learning.lessons = (s.learning.lessons || []).filter((l) => l.id !== id);
+        return s;
+      });
+      if (onConfigChanged) await onConfigChanged();
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post("/panel/api/suggestions/:id", auth, async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      const action = String(req.body?.action || "");
+      let applied = null;
+      await updateStore((s) => {
+        s.suggestions = s.suggestions || [];
+        const sg = s.suggestions.find((x) => x.id === id);
+        if (!sg) throw new Error("الاقتراح غير موجود");
+        if (action === "accept") {
+          if (sg.kind === "price") {
+            s.prices = s.prices || {};
+            s.prices[sg.field] = s.prices[sg.field] || {};
+            s.prices[sg.field][sg.type] = sg.value;
+            applied = { kind: "price", field: sg.field, type: sg.type, value: sg.value };
+          }
+          sg.status = "applied";
+        } else if (action === "reject") {
+          sg.status = "rejected";
+        } else {
+          throw new Error("إجراء غير معروف");
+        }
+        return s;
+      });
+      if (onConfigChanged) await onConfigChanged();
+      res.json({ ok: true, applied });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
 
   app.post("/panel/api/faq", auth, async (req, res) => {
     try {
@@ -244,7 +324,7 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
         managed: true,
         active: body.active !== false,
         category: String(body.category || "الردود العامة"),
-        triggers: Array.isArray(body.triggers) ? body.triggers.map(String).filter(Boolean) : [],
+        triggers: normTriggers(body.triggers),
         reply: String(body.reply || ""),
         matchMode: body.matchMode || "contains",
       };
@@ -270,7 +350,7 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
           ...body,
           id,
           managed: true,
-          triggers: body.triggers !== undefined ? body.triggers.map(String).filter(Boolean) : cur.triggers,
+          triggers: body.triggers !== undefined ? normTriggers(body.triggers) : cur.triggers,
         };
         return s;
       });

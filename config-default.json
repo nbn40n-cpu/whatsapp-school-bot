@@ -156,6 +156,11 @@
                   "samiraPhone":  "0568828238",
                   "yasmineRule":  "إذا سأل عن رقم ياسمين أو واتسها: قل \u0027أسف، هذا الرقم خاص وممنوع من النشر.\u0027"
               },
+    "learning":  {
+                    "examples":  [],
+                    "lessons":  []
+                },
+    "suggestions":  [],
     "styles":  {
                    "family":  "",
                    "intimate":  "",

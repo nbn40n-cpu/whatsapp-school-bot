@@ -164,3 +164,21 @@ export async function getSchoolInfo() {
   const block = facts.filter(Boolean).join("\n");
   return schoolInfo + "\n\nأحدث البيانات الرسمية من إدارة المدرسة (تُحدَّث من لوحة التحكم، وهي المُعتمدة والأحدث، وإذا تعارضت مع أي رقم سابق فاعملي بها):\n" + block + "\n";
 }
+
+export async function getLearningBlock() {
+  try {
+    const s = await getStore();
+    const ls = ((s.learning && s.learning.lessons) || []).filter((l) => l && l.status === "accepted" && l.q && l.a);
+    if (!ls.length) return "";
+    const lines = ls.slice(-3).map((l) =>
+      `طالب: ${String(l.q).slice(0, 70)}\nالأستاذ سمير رد فعلياً: ${String(l.a).slice(0, 110)}`
+    );
+    return (
+      "\n\nأسلوب الأستاذ سمير الحقيقي مع الطلاب (خذ من هذه الأمثلة الطريقة والعبارات فقط، وبدون تغيير أي معلومة رسمية عندك):\n" +
+      lines.join("\n---\n") +
+      "\n"
+    );
+  } catch (_) {
+    return "";
+  }
+}

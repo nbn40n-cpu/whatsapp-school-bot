@@ -88,6 +88,7 @@
       <button class="ghost sm" data-tab="settings">⚙️ الإعدادات</button>
       <button class="ghost sm" data-tab="school">🏫 المدرسة</button>
       <button class="ghost sm" data-tab="styles">🎭 الشخصيات</button>
+      <button class="ghost sm" data-tab="learn">🎓 تعلم سوزي</button>
     </div>
 
     <div class="section" id="secDashboard">
@@ -242,6 +243,20 @@
       </div>
     </div>
 
+    <div class="section hidden" id="secLearn">
+      <div class="row" style="align-items:center;justify-content:space-between">
+        <h3 style="margin:0">🎓 تعلم سوزي</h3>
+        <button class="ghost sm" id="btnRefreshLearn">🔄 تحديث</button>
+      </div>
+      <p class="muted">هون بتظهر محادثاتك الحقيقية مع الطلاب: لما ترد على طالب من رقمك بنفسجي، بيتسجل السؤال وردك هون. اضغط "تعلم" عالرد اللي بدك سوزي تاخذ منه الأسلوب، وبصير تستخدم نفس طريقتك بالردود المشابهة (بدون تغيير المعلومات الرسمية). بلاغات الأسعار/الأرقام بتظهر إذا كتبت بمحادثتك سعر أو رقم جديد مش موجود بالمخزن — القبول بيحدّث السعر تلقائياً.</p>
+      <h4 style="margin:14px 0 6px">💡 بلاغات معلومات جديدة</h4>
+      <div id="sugList"></div>
+      <h4 style="margin:14px 0 6px">📥 محادثات بانتظار القرار</h4>
+      <div id="exList"></div>
+      <h4 style="margin:14px 0 6px">✅ دروس تعلمتها سوزي</h4>
+      <div id="lsList"></div>
+    </div>
+
   </div>
 </div>
 <div class="toast hidden" id="toast"></div>
@@ -327,6 +342,7 @@ async function refresh() {
       if (!settingsDirty) renderSettings();
       if (!schoolDirty) renderSchool();
       if (!stylesDirty) renderStyles();
+      renderLearn();
       showView("main");
     } catch (e) {
       if (e.message !== "انتهت الجلسة") { showView("main"); toast("تعذر التحميل: " + e.message, 4000); }
@@ -345,6 +361,7 @@ function showTab(tab) {
   $("secSettings").classList.toggle("hidden", tab !== "settings");
   $("secSchool").classList.toggle("hidden", tab !== "school");
   $("secStyles").classList.toggle("hidden", tab !== "styles");
+  $("secLearn").classList.toggle("hidden", tab !== "learn");
   document.querySelectorAll("[data-tab]").forEach((b) => {
     const on = b.dataset.tab === tab;
     b.style.background = on ? "var(--acc)" : "";
@@ -712,6 +729,76 @@ function renderStyles() {
   });
 }
 function markStyles() { stylesDirty = true; }
+
+function esc(s) {
+  return String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function fmtTs(ts) {
+  try { return new Date(ts).toLocaleString("ar-PS", { dateStyle: "short", timeStyle: "short" }); } catch (_) { return ""; }
+}
+
+function renderLearn() {
+  const d = stateData || {};
+  const learning = d.learning || { examples: [], lessons: [] };
+  const sugs = d.suggestions || [];
+  const sugList = $("sugList");
+  const exList = $("exList");
+  const lsList = $("lsList");
+  if (!sugList || !exList || !lsList) return;
+
+  const pendSug = sugs.filter((x) => x.status === "pending");
+  sugList.innerHTML = pendSug.length
+    ? pendSug.map((x) => {
+        const title = x.kind === "price"
+          ? `سعر جديد: ${esc(x.type)} — ${esc(x.field === "lesson" ? "الدرس" : "التيست")} ${esc(x.value)} شيكل (المخزن الحالي: ${esc(x.old)})`
+          : `رقم جديد من رسائلك: ${esc(x.value)}`;
+        return `<div class="card" style="margin-top:8px"><b>${title}</b><div class="muted" style="margin-top:4px">«${esc(x.quote)}» — ${fmtTs(x.ts)}</div>
+          <div style="margin-top:6px"><button class="ok sm" data-sug="${esc(x.id)}" data-act2="accept">✅ قبول${x.kind === "phone" ? " (إغلاق البلاغ فقط)" : ""}</button> <button class="ghost sm" data-sug="${esc(x.id)}" data-act2="reject">✖️ تجاهل</button></div></div>`;
+      }).join("")
+    : `<p class="muted">ما في بلاغات جديدة.</p>`;
+
+  const pendEx = (learning.examples || []).filter((x) => x.status === "pending");
+  exList.innerHTML = pendEx.length
+    ? pendEx.slice().reverse().map((x) => {
+        let h = "";
+        if (x.q) h += `<div><b>طالب:</b> ${esc(x.q)}</div>`;
+        if (x.suzyA) h += `<div style="margin-top:2px"><b>سوزي ردت:</b> <span class="muted">${esc(String(x.suzyA).slice(0, 120))}</span></div>`;
+        h += `<div style="margin-top:2px"><b>سمير رد:</b> ${esc(x.ownerA)}</div>`;
+        return `<div class="card" style="margin-top:8px">${h}<div class="muted" style="margin-top:4px">${fmtTs(x.ts)} — من ${esc(x.chat || "")}</div>
+          <div style="margin-top:6px"><button class="ok sm" data-ex="${esc(x.id)}" data-act3="accept">🎓 تعلم</button> <button class="ghost sm" data-ex="${esc(x.id)}" data-act3="reject">✖️ تجاهل</button> <button class="danger sm" data-ex="${esc(x.id)}" data-act3="delete">🗑 حذف</button></div></div>`;
+      }).join("")
+    : `<p class="muted">ما في محادثات جديدة. لما ترد على طالب من رقمك، بتنضاف هون تلقائياً.</p>`;
+
+  const lessons = (learning.lessons || []).filter((l) => l.status === "accepted");
+  lsList.innerHTML = lessons.length
+    ? lessons.slice().reverse().map((l) => {
+        return `<div class="card" style="margin-top:8px"><div><b>طالب:</b> ${esc(l.q)}</div><div style="margin-top:2px"><b>أسلوب سمير:</b> ${esc(l.a)}</div>
+          <div style="margin-top:6px"><button class="danger sm" data-ls="${esc(l.id)}">🗑 حذف الدرس</button></div></div>`;
+      }).join("")
+    : `<p class="muted">لسا ما تعلمت سوزي أي أسلوب. اقبل محادثة من فوق وبتبلش.</p>`;
+}
+
+document.addEventListener("click", async (ev) => {
+  const b1 = ev.target.closest("[data-sug]");
+  if (b1) {
+    try { await api(`/panel/api/suggestions/${b1.dataset.sug}`, { method: "POST", body: { action: b1.dataset.act2 } }); toast("تم ✅"); await refresh(); } catch (e) { toast(e.message); }
+    return;
+  }
+  const b2 = ev.target.closest("[data-ex]");
+  if (b2) {
+    try { await api(`/panel/api/learning/${b2.dataset.ex}`, { method: "POST", body: { action: b2.dataset.act3 } }); toast(b2.dataset.act3 === "accept" ? "سوزي تعلمت الأسلوب 🎓" : "تم ✅"); await refresh(); } catch (e) { toast(e.message); }
+    return;
+  }
+  const b3 = ev.target.closest("[data-ls]");
+  if (b3) {
+    try {
+      await api(`/panel/api/lesson-delete/${b3.dataset.ls}`, { method: "POST", body: {} });
+      toast("انحذف الدرس"); await refresh();
+    } catch (e) { toast(e.message); }
+  }
+});
+
+$("btnRefreshLearn").onclick = () => refresh();
 
 $("btnSaveStyles").onclick = async () => {
   const body = {

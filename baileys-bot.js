@@ -81,6 +81,13 @@ const OWNER_PAUSE_MS = 10 * 60 * 1000;
 const mySentIds = new Set();
 const lastErrorReply = new Map();
 const lidToPn = new Map();
+const lastStudentQ = new Map();
+const lastBotReply = new Map();
+const lastTypeByChat = new Map();
+const LEARN_TYPE_TTL = 30 * 60 * 1000;
+const LICENSE_TYPES = ["خصوصي", "شحن خفيف", "شحن ثقيل", "باص", "تراكتور", "اسعاف"];
+const LESSON_PRICE = { "خصوصي": 105, "شحن خفيف": 125, "شحن ثقيل": 180, "باص": 180, "تراكتور": 105 };
+const TEST_PRICE = { "خصوصي": 320, "شحن خفيف": 380, "شحن ثقيل": 520, "باص": 520, "تراكتور": 320 };
 const ERROR_REPLY_COOLDOWN = 30 * 60 * 1000;
 const authPath = path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH || ".", "baileys_auth");
 
@@ -137,6 +144,91 @@ function isEmojiOnly(s) {
   return !cleaned;
 }
 
+function recordBotReply(to, text) {
+  if (to && text) lastBotReply.set(to, { a: String(text).slice(0, 400), ts: Date.now() });
+}
+function setTypeForChat(jid, type) {
+  if (jid && LICENSE_TYPES.includes(type)) lastTypeByChat.set(jid, { type, ts: Date.now() });
+}
+function getTypeForChat(jid) {
+  const v = lastTypeByChat.get(jid);
+  if (!v) return null;
+  if (Date.now() - v.ts > LEARN_TYPE_TTL) { lastTypeByChat.delete(jid); return null; }
+  return v.type;
+}
+
+async function scanSuggestion(ownerA) {
+  try {
+    const s = await loadStore();
+    let changed = false;
+    const sug = (s.suggestions = s.suggestions || []);
+    const TYPE_KEYS = { "خصوصي": "خصوصي", "شحن خفيف": "شحن خفيف", "شحن": "شحن خفيف", "شحن ثقيل": "شحن ثقيل", "ثقيل": "شحن ثقيل", "باص": "باص", "تراكتور": "تراكتور" };
+    for (const sen of String(ownerA).split(/[.!؟\n،]+/)) {
+      const nsen = normAr(sen);
+      const mPrice = String(sen || "").match(/(\d{2,4})\s*شيكل/);
+      if (!mPrice) continue;
+      let ltype = null, field = null;
+      if (/تيست|فحص نتيج/.test(nsen)) field = "testFirst";
+      else if (/درس|حصه|حصة/.test(nsen)) field = "lesson";
+      if (!field) continue;
+      const loose = nsen.replace(/(^|\s)ال/g, "$1");
+      for (const [w, tt] of Object.entries(TYPE_KEYS)) { const k = normAr(w); if (nsen.includes(k) || loose.includes(k)) { ltype = tt; break; } }
+      if (!ltype) continue;
+      const val = parseInt(mPrice[1], 10);
+      const cur = s.prices?.[field]?.[ltype];
+      if (cur == null || cur === val) continue;
+      if (sug.some((x) => x.status === "pending" && x.kind === "price" && x.field === field && x.type === ltype && x.value === val)) continue;
+      sug.push({ id: "sg-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), kind: "price", field, type: ltype, value: val, old: cur, quote: sen.trim().slice(0, 160), status: "pending", ts: Date.now() });
+      changed = true;
+    }
+    const phones = String(ownerA).match(/05\d{8}/g) || [];
+    if (phones.length) {
+      const knownTails = new Set();
+      const addTail = (p) => { const d = String(p || "").replace(/\D/g, ""); if (d.length >= 9) knownTails.add(d.slice(-9)); };
+      addTail(PHONE);
+      for (const arr of [FAMILY_NUMBERS, INTIMATE_NUMBERS, BOSS_NUMBERS, TRAINER_NUMBERS]) for (const p of arr || []) addTail(p);
+      for (const ph of phones) {
+        if (knownTails.has(ph.slice(-9))) continue;
+        if (sug.some((x) => x.status === "pending" && x.kind === "phone" && x.value === ph)) continue;
+        sug.push({ id: "sg-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), kind: "phone", value: ph, quote: String(ownerA).slice(0, 160), status: "pending", ts: Date.now() });
+        changed = true;
+      }
+    }
+    if (changed) {
+      if (sug.length > 30) s.suggestions = sug.slice(-30);
+      await saveStore(s);
+      console.log("💡 اقتراحات معلومات جديدة من ردود المدير — راجعها من تبويب تعلم سوزي");
+    }
+  } catch (e) { console.error("scanSuggestion:", e.message); }
+}
+
+async function captureOwnerReply(jid, m, ownerA) {
+  try {
+    const s = await loadStore();
+    s.learning = s.learning || { examples: [], lessons: [] };
+    s.learning.examples = s.learning.examples || [];
+    const ex = s.learning.examples;
+    const last = ex[ex.length - 1];
+    if (last && last.ownerA === ownerA && Date.now() - last.ts < 90000) return;
+    const stq = lastStudentQ.get(jid);
+    const bot = lastBotReply.get(jid);
+    ex.push({
+      id: "ln-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      chat: pnOf(jid, m),
+      q: stq ? stq.q : "",
+      suzyA: bot ? bot.a : "",
+      ownerA,
+      note: "",
+      status: "pending",
+      ts: Date.now(),
+    });
+    if (ex.length > 60) s.learning.examples = ex.slice(-60);
+    await saveStore(s);
+    console.log(`🎓 تسجيل رد المدير للتعلم (${pnOf(jid, m)})`);
+    await scanSuggestion(ownerA);
+  } catch (e) { console.error("captureOwnerReply:", e.message); }
+}
+
 // Regroupe les phrases interdites pour les convertir en naturelles
 const BAD_REPLY_PATTERN = /(أعتذر|اعتذر|يرجى|يُرجى|بعد المغرب|مراسلة المدرب سمير|مراجعة المدرسة|المدرب سمير بعد|ما عندي معلومات|لا أعلم|لا أستطيع|أنني غير قادر|غير قادر|لا يمكنني)/gi;
 const FALLBACK_NATURAL = [
@@ -165,6 +257,7 @@ async function sendMsg(sock, to, text) {
     try {
       const sent = await sock.sendMessage(to, { text: clean });
       if (sent?.key?.id) mySentIds.add(sent.key.id);
+      recordBotReply(to, clean);
       return;
     } catch (e) { if (i < 2) await new Promise(r => setTimeout(r, 2000)); }
   }
@@ -181,6 +274,7 @@ async function sendVoice(sock, to, text) {
       ptt: true,
     });
     if (sent?.key?.id) mySentIds.add(sent.key.id);
+    recordBotReply(to, short);
     pushEvent({ dir: "out", from: to, text: short, kind: "voice" }).then(v => v);
     return;
   } catch (e) {
@@ -373,7 +467,7 @@ async function routeText(sock, msg, jid, text, asVoice = false) {
     await respond(storeReply.reply);
     return true;
   }
-  const faq = handleFAQ(text, t);
+  const faq = handleFAQ(text, t, getTypeForChat(jid), jid);
   if (faq) {
     await respond(faq);
     return true;
@@ -381,7 +475,7 @@ async function routeText(sock, msg, jid, text, asVoice = false) {
   return false;
 }
 
-function handleFAQ(raw, norm) {
+function handleFAQ(raw, norm, defType, jid) {
   const check = (w) => raw.includes(w) || norm.includes(normAr(w));
   const has = (...words) => words.some(check);
   const hasWord = (...words) => words.some(w => {
@@ -392,12 +486,12 @@ function handleFAQ(raw, norm) {
   });
   const hasAny = (...words) => words.some(w => hasWord(w) || has(w));
 const FULL = {
-    تراكتور: "هلا، إذا بدك رخصة تراكتور، عمرك 16 سنة. بتحتاج صورتين وصورة هوية، والفحص الطبي بدون صيام. الدراسة 105 شيكل والتيست الأول 320.",
-    خصوصي: "هلا، إذا بدك رخصة خصوصي، عمرك لازم 17.5 سنة (بعمر 17 بتجهز معاملة وتقدم توريا أو تيست). بتلزمك صورتين بخلفية زرقاء وصورة هوية، وبعدها فحص طبي بدون صيام وتيست أول. الدراسة 105 والتيست الأول 320، والدفع بس فيزا. تعال علينا ببيطا شارع السلام بجانب سوبرماركت البديع ومنبلش معاملتك.",
-    "شحن خفيف": "هلا، إذا بدك رخصة شحن خفيف، عمرك لازم 18 سنة، ومن عمر 17.5 بتقدر تبدأ: بتنجح التوريا والفحص وبتاخد خصوصي أول، وبس تصير 18 بتاخد الشحن. بتلزمك 4 صور بخلفية زرقاء وصورتي هوية، والفحص الطبي بواد البقيع بصيام وفحص نظر. الدراسة 125 والتيست الأول 380.",
-    "شحن ثقيل": "هلا، إذا بدك رخصة شحن ثقيل، عمرك لازم 19 سنة. لازم تجي عالمدرسة نعمل لك معاملة، وبتلزمك 4 صور زرقاء وصورتي هوية وصورة رخصة وشهادة خامس فأعلى، وبعدها فحص طبي بصيام. الدراسة 180 شيكل والتيست الأول 520.",
-    باص: "هلا، إذا بدك رخصة باص، عمرك لازم 20 سنة، وشرطها شحن خفيف سنتين مع شهادة فوق الثامن مصدقة وحسن سير. لازم تجي عالمدرسة نعمل لك معاملة، وبتلزمك 4 صور زرقاء وصورتي هوية وصورة رخصة، وبعدها فحص طبي بصيام. الدراسة 180 شيكل والتيست الأول 520.",
-    اسعاف: "رخصة إسعاف: العمر 21 سنة.",
+    تراكتور: "لرخصة التراكتور بتلزمك صورتين شخصية بخلفية زرقاء وصورة هوية، والفحص الطبي بدون صيام. تعال على المدرسة ببيطا شارع السلام ومنعملك المعاملة.",
+    خصوصي: "لرخصة الخصوصي بتلزمك صورتين شخصية بخلفية زرقاء وصورة هوية. تعال على المدرسة ببيطا شارع السلام ومنعملك المعاملة، وبعدها فحص طبي بدون صيام وتقدم توريا.",
+    "شحن خفيف": "لرخصة الشحن الخفيف بتلزمك 4 صور شخصية بخلفية زرقاء وصورتين هوية. تعال على المدرسة ببيطا شارع السلام ومنعملك المعاملة، وبعدها فحص طبي بصيام.",
+    "شحن ثقيل": "لرخصة الشحن الثقيل بتلزمك 4 صور زرقاء وصورتي هوية وصورة رخصة وشهادة خامس فأعلى. تعال على المدرسة ببيطا شارع السلام ومنعملك المعاملة، وبعدها فحص طبي بصيام.",
+    باص: "لرخصة الباص بتلزمك 4 صور زرقاء وصورتي هوية وصورة رخصة وشهادة فوق الثامن مصدقة وحسن سير. تعال على المدرسة ببيطا شارع السلام ومنعملك المعاملة.",
+    اسعاف: "رخصة الإسعاف: العمر 21 سنة، وتجي عالمدرسة ببيطا ومنعملك المعاملة.",
   };
   const findType = (priority) => {
     const list = priority || ["شحن ثقيل", "شحن خفيف", "تراكتور", "خصوصي", "باص", "اسعاف", "شحن", "ثقيل"];
@@ -409,10 +503,13 @@ const FULL = {
     return "استلام الرخصة أول مرة بيدفع 82 شيكل لمدة سنتين وبتصير سائق جديد، وبعدها التجديد 5 سنوات بيدفع 202 شيكل. والدفع بس ببطاقة بنكية فيزا، ما في دفع نقدي كاش.";
   }
   if (has("مبروك", "مبارك", "الف مبروك", "ألف مبروك", "مبارك عليك")) return "الله يبارك فيك، منورتنا 🌹";
-  if ((hasWord("موعد", "ميعاد", "وقت", "الوقت", "التوقيت", "ساعة", "ساعه", "الساعة", "الساعه", "عشرة", "عشره") && hasWord("درس", "دروس", "درسي", "درسه", "تدريب", "التدريب", "بتمرن", "تعليم", "حصة", "حصه")) || has("موعد الدرس", "وقت الدرس", "موعد التدريب", "ساعة الدرس", "ساعة التدريب", "موعد درسي", "وقت درسي")) {
+  if ((hasWord("موعد", "ميعاد", "وقت", "الوقت", "التوقيت", "ساعة", "ساعه", "الساعة", "الساعه", "عشرة", "عشره") && hasWord("درس", "دروس", "درسي", "درسه", "تدريب", "التدريب", "بتمرن", "تعليم", "حصة", "حصه", "الحصة", "الحصه")) || has("موعد الدرس", "وقت الدرس", "موعد التدريب", "ساعة الدرس", "ساعة التدريب", "موعد درسي", "وقت درسي")) {
     return "بخصوص موعد الدرس، تواصل مع الاستاذ سمير وقت متأخر وبيحدد لك موعد الدرس بالتفصيل.";
   }
-  if (has("بدي طلع رخصه", "بدي طلع رخصة", "بدي اطلع رخصه", "بدي اطلع رخصة", "بدي اخذ رخصه", "بدي اخذ رخصة")) return "احكيلي نوع الرخصة (خصوصي، شحن خفيف، شحن ثقيل، باص، تراكتور) وبعطيك كل التفاصيل.";
+  if (has("بدي طلع رخصه", "بدي طلع رخصة", "بدي اطلع رخصه", "بدي اطلع رخصة", "بدي اخذ رخصه", "بدي اخذ رخصة")) {
+    if (defType && FULL[defType]) { setTypeForChat(jid, defType); return FULL[defType]; }
+    return "احكيلي نوع الرخصة (خصوصي، شحن خفيف، شحن ثقيل، باص، تراكتور) وبعطيك كل التفاصيل.";
+  }
   if (has("عمر", "سن", "كم عمر", "السن")) {
     if (has("تراكتور")) return "تراكتور: عمرك 16 سنة.";
     if (has("شحن ثقيل") || has("ثقيل")) return "شحن ثقيل: عمرك 19 سنة.";
@@ -430,21 +527,24 @@ const FULL = {
     }
     return "الفحص الطبي بيوم الأحد 8 الصبح بمديرية الصحة بواد البقيع.";
   }
-  if (has("مطلوب", "شو المطلوب", "الاشياء", "شو الاشياء", "الأشياء", "بتلزم", "يلزم", "بلزم", "الاوراق", "الأوراق", "صور", "معاملة", "اجراءات", "إجراءات", "لوازم")) {
-    if (has("شحن ثقيل") || has("ثقيل")) return "ثقيل: 4 صور زرقاء + صورتين هوية + صورة رخصة + شهادة خامس فأعلى.";
-    if (has("شحن خفيف") || has("شحن")) return "شحن خفيف: 4 صور شخصية بخلفية زرقاء + صورتين هوية، وتعال على المدرسة نعمل لك المعاملة، ويوم الأحد بتعمل الفحص الطبي (فحص النظر) ومع صيام.";
-    if (has("باص")) return "باص: 4 صور زرقاء + صورتين هوية + صورة رخصة + شهادة فوق الثامن مصدقة + حسن سير.";
-    if (has("تراكتور")) return "تراكتور: صورتين + صورة هوية.";
-    if (has("خصوصي")) return "خصوصي: صورتين + صورة هوية.";
-    return "الأوراق على حسب نوع الرخصة. شو نوع رخصتك؟";
+  if (has("مطلوب", "شو المطلوب", "الاشياء", "شو الاشياء", "الأشياء", "بتلزم", "يلزم", "بلزم", "الاوراق", "الأوراق", "صور", "معاملة", "معامله", "اجراءات", "إجراءات", "لوازم", "اجهز", "أجهز")) {
+    if (has("شحن ثقيل") || has("ثقيل")) return "أوراق الشحن الثقيل: 4 صور زرقاء + صورتين هوية + صورة رخصة + شهادة خامس فأعلى. تعال على المدرسة ببيطا شارع السلام ومنعملك المعاملة.";
+    if (has("شحن خفيف") || has("شحن")) return "أوراق الشحن الخفيف: 4 صور شخصية بخلفية زرقاء + صورتين هوية. تعال على المدرسة ببيطا شارع السلام ومنعملك المعاملة، وبعدها فحص طبي بصيام.";
+    if (has("باص")) return "أوراق الباص: 4 صور زرقاء + صورتين هوية + صورة رخصة + شهادة فوق الثامن مصدقة + حسن سير. تعال على المدرسة ببيطا شارع السلام ومنعملك المعاملة.";
+    if (has("تراكتور")) return "أوراق التراكتور: صورتين بخلفية زرقاء + صورة هوية. تعال على المدرسة ببيطا شارع السلام ومنعملك المعاملة.";
+    if (has("خصوصي")) return "أوراق الخصوصي: صورتين شخصية بخلفية زرقاء + صورة هوية. تعال على المدرسة ببيطا شارع السلام ومنعملك المعاملة.";
+    if (defType && FULL[defType]) { setTypeForChat(jid, defType); return FULL[defType]; }
+    return "الأوراق على حسب نوع الرخصة، شو نوعها؟ (خصوصي، شحن خفيف، شحن ثقيل، باص، تراكتور)";
   }
+  if (has("وين اعمل", "وين أعمل", "وين اجهز", "وين أجهز", "بجهز الاوراق", "بجهز الأوراق", "اعمل المعاملة", "اعمل المعامله", "جهز المعاملة", "جهز المعامله")) return "المعاملة بتجهز عنا بالمدرسة ببيطا، شارع السلام، بجانب سوبرماركت البديع. تعال ومنعملك ياها.";
   if (has("عنوان", "وين المدرسة", "موقع المدرسة", "وين المدرسه", "موقع المدرسه", "اين المدرسة", "بيطا")) return "المدرسة بيطا، شارع السلام، بين مثلث سليط وصرح الشهيد، بجانب سوبرماركت البديع.";
-  if (hasWord("درس") && !hasWord("المدرسه", "المدرسة", "مدرب", "المدرب", "المدربين")) {
+  if ((hasWord("درس") || hasWord("حصة", "حصه", "الحصة", "الحصه")) && !hasWord("المدرسه", "المدرسة", "مدرب", "المدرب", "المدربين")) {
     if (has("خصوصي")) return "درس خصوصي: 105 شيكل.";
     if (has("شحن ثقيل") || has("ثقيل")) return "درس ثقيل: 180 شيكل.";
     if (has("شحن خفيف") || has("شحن")) return "درس شحن خفيف: 125 شيكل.";
     if (has("باص")) return "درس باص: 180 شيكل.";
     if (has("تراكتور")) return "درس تراكتور: 105 شيكل.";
+    if (defType && LESSON_PRICE[defType] != null) return `درس ${defType}: ${LESSON_PRICE[defType]} شيكل.`;
     return "أسعار الدرس: خصوصي 105، شحن خفيف 125، ثقيل 180، باص 180، تراكتور 105.";
   }
   if (has("تيست", "التيست", "فحص نتيج")) {
@@ -455,15 +555,19 @@ const FULL = {
     if (has("شحن خفيف") || has("شحن")) return "تيست شحن خفيف: أول 380، تاني وما فوق 460.";
     if (has("باص")) return "تيست باص أول: 520 شيكل.";
     if (has("تراكتور")) return "تيست تراكتور أول: 320 شيكل.";
+    if (defType && TEST_PRICE[defType] != null) return `تيست ${defType} أول: ${TEST_PRICE[defType]} شيكل.`;
     return "رسوم التيست أول: خصوصي 320، شحن خفيف 380، ثقيل 520، باص 520، تراكتور 320.";
   }
   if (has("تكلفة رخصة", "كم تكلفة", "كم بتكلف", "بشيكل", "التكلفة", "كم بكلف", "كم السعر", "كم بيكلف", "كلفت", "طريقه دفع", "طريقة الدفع", "كيف ادفع", "كيف أدفع", "الدفع")) {
-    if (has("خصوصي")) return "خصوصي: حوالي 1895 شيكل (15 درس × 105 + تيست أول 320). الدفع بس ببطاقة فيزا وما في كاش، وبتستلم الرخصة أول مرة 82 شيكل لمدة سنتين (سائق جديد) وبعدها التجديد 202 شيكل لخمس سنين. تعال علينا ببيطا نجهز معاملتك.";
-    if (has("خصوصي")) return "خصوصي: حوالي 1895 شيكل (15 درس × 105 + تيست أول 320).";
-    if (has("شحن خفيف") || has("شحن")) return "شحن خفيف: حوالي 2255 شيكل (15 درس × 125 + تيست أول 380).";
-    if (has("ثقيل")) return "ثقيل: حوالي 3220 شيكل (15 درس × 180 + تيست أول 520).";
-    if (has("باص")) return "باص: حوالي 3220 شيكل (15 درس × 180 + تيست أول 520).";
-    if (has("تراكتور")) return "تراكتور: حوالي 1895 شيكل (15 درس × 105 + تيست أول 320).";
+    if (has("شحن خفيف") || has("شحن")) return "تكلفة الشحن الخفيف تقريباً 2255 شيكل: الدرس 125 × 15 درس + تيست أول 380. والدفع كله بس ببطاقة فيزا.";
+    if (has("شحن ثقيل") || has("ثقيل")) return "تكلفة الشحن الثقيل تقريباً 3220 شيكل: الدرس 180 × 15 درس + تيست أول 520. والدفع بس فيزا.";
+    if (has("خصوصي")) return "تكلفة الخصوصي تقريباً 1895 شيكل: الدرس 105 × 15 درس + تيست أول 320. والدفع كله بس ببطاقة فيزا.";
+    if (has("باص")) return "تكلفة الباص تقريباً 3220 شيكل: الدرس 180 × 15 درس + تيست أول 520. والدفع بس فيزا.";
+    if (has("تراكتور")) return "تكلفة التراكتور تقريباً 1895 شيكل: الدرس 105 × 15 درس + تيست أول 320. والدفع بس فيزا.";
+    if (defType && LESSON_PRICE[defType] != null && TEST_PRICE[defType] != null) {
+      const lp = LESSON_PRICE[defType], tp = TEST_PRICE[defType];
+      return `تكلفة ${defType} تقريباً ${lp * 15 + tp} شيكل: الدرس ${lp} × 15 درس + تيست أول ${tp}. والدفع بس فيزا.`;
+    }
     return "التكلفة بتعتمد على نوع الرخصة، شو نوعها؟ (خصوصي، شحن خفيف، ثقيل، باص، تراكتور)";
   }
   if (has("الامتحان النظري", "التوريا") && (has("وين", "مكان", "دائرة", "أين"))) return "الامتحان النظري (التوريا) بدائرة السير بمنطقة عزيز، على طريق المستشفى.";
@@ -488,16 +592,18 @@ const FULL = {
   if (has("بدي اطلع", "اريد اطلع", "عايز اطلع", "عاوز اطلع", "بدي اخذ", "اريد اخذ", "بدي رخصة", "اريد رخصة", "عايز رخصة", "استفسر", "بستفسر", "بتأكد", "رخصة") && has("رخصة")) {
     const ty = findType(["شحن ثقيل", "شحن خفيف", "تراكتور", "خصوصي", "باص", "اسعاف"]);
     const tyBare = has("شحن") && !has("شحن ثقيل", "شحن خفيف") ? "شحن خفيف" : null;
-    const chosen = (ty && FULL[ty]) ? ty : (tyBare && FULL[tyBare] ? tyBare : null);
-    if (chosen && FULL[chosen]) return FULL[chosen];
+    let chosen = (ty && FULL[ty]) ? ty : (tyBare && FULL[tyBare] ? tyBare : null);
+    if ((!chosen || !FULL[chosen]) && defType && FULL[defType]) chosen = defType;
+    if (chosen && FULL[chosen]) { setTypeForChat(jid, chosen); return FULL[chosen]; }
     return "احكيلي نوع الرخصة (خصوصي، شحن خفيف، شحن ثقيل، باص، تراكتور) وبعطيك كل التفاصيل.";
   }
-  if (hasWord("اوتوماتيك", "اوتماتيك", "اوتوماتك", "اتوماتيك", "عادي") && !has("شحن", "ثقيل", "تيست")) return FULL["خصوصي"] || "خصوصي";
+  if (hasWord("اوتوماتيك", "اوتماتيك", "اوتوماتك", "اتوماتيك", "عادي") && !has("شحن", "ثقيل", "تيست")) { setTypeForChat(jid, "خصوصي"); return FULL["خصوصي"] || "خصوصي"; }
   if (raw.trim().split(/\s+/).length <= 4) {
     const ty = findType(["شحن ثقيل", "شحن خفيف", "تراكتور", "خصوصي", "باص", "اسعاف"]);
     const tyBare = has("شحن") && !has("شحن ثقيل", "شحن خفيف") ? "شحن خفيف" : null;
-    const chosen = (ty && FULL[ty]) ? ty : (tyBare && FULL[tyBare] ? tyBare : null);
-    if (chosen && FULL[chosen]) return FULL[chosen];
+    let chosen = (ty && FULL[ty]) ? ty : (tyBare && FULL[tyBare] ? tyBare : null);
+    if ((!chosen || !FULL[chosen]) && defType && FULL[defType] && hasWord("رخصه", "رخصة")) chosen = defType;
+    if (chosen && FULL[chosen]) { setTypeForChat(jid, chosen); return FULL[chosen]; }
   }
   return null;
 }
@@ -681,6 +787,15 @@ async function start() {
 
       if (m.key?.fromMe) {
         ownerActive.set(jid, Date.now());
+        const sid = m.key?.id || "";
+        if (sid && !mySentIds.has(sid) && !seen.has("own_" + sid)) {
+          seen.add("own_" + sid);
+          const otext = extractText(m);
+          const notSpecial = !isFamily(jid, m) && !isIntimate(jid, m) && !isBoss(jid, m) && !isTrainer(jid, m);
+          if (otext && otext.length >= 3 && otext.length <= 500 && !isEmojiOnly(otext) && jid !== ownerJid && notSpecial) {
+            captureOwnerReply(jid, m, otext).catch(() => {});
+          }
+        }
         continue;
       }
 
@@ -698,6 +813,8 @@ async function start() {
       }
 
       console.log(`📩 ${jid} (${pnOf(jid, m)}): ${extractText(m).slice(0, 60) || "[media]"}`);
+      const qtext = extractText(m);
+      if (qtext && qtext.length >= 2) lastStudentQ.set(jid, { q: qtext.slice(0, 300), ts: Date.now() });
       try {
         await handleMsg(sock, m, jid);
       } catch (e) {
