@@ -210,6 +210,8 @@
         </select>
         <label>السرعة</label>
         <input id="aiRate" placeholder="-8%">
+        <label>قوة الصوت (1 = عادي، 1.5 = أعلى، 2 = قوي)</label>
+        <input id="aiGain" placeholder="1.5">
         <label>الطبقة (pitch)</label>
         <input id="aiPitch" placeholder="-1Hz">
         <label><input type="checkbox" id="aiReplyVoice" style="width:auto"> الرد على الرسائل الصوتية</label>
@@ -603,11 +605,13 @@ function renderSettings() {
   }
   $("aiGroqVoice").value = gv;
   $("aiRate").value = voice.rate || "";
+  $("aiGain").value = voice.gain != null ? voice.gain : "1.5";
   $("aiPitch").value = voice.pitch || "";
   $("aiReplyVoice").checked = voice.replyToVoice !== false;
   $("aiPrimary").oninput = markSettings; $("aiFallbacks").oninput = markSettings;
   $("aiTemp").oninput = markSettings; $("aiMax").oninput = markSettings;
   $("aiVoice").onchange = markSettings; $("aiRate").oninput = markSettings;
+  $("aiGain").oninput = markSettings;
   $("aiGroqVoice").onchange = markSettings;
   $("aiPitch").oninput = markSettings; $("aiReplyVoice").onchange = markSettings;
 }
@@ -622,6 +626,7 @@ $("btnSaveAi").onclick = async () => {
     voice: $("aiVoice").value.trim(),
     groqVoice: $("aiGroqVoice").value.trim(),
     rate: $("aiRate").value.trim(),
+    gain: $("aiGain").value.trim(),
     pitch: $("aiPitch").value.trim(),
     replyToVoice: $("aiReplyVoice").checked,
   };

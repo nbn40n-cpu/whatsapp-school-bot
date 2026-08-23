@@ -21,7 +21,8 @@
                   "pitch":  "-1Hz",
                   "replyToVoice":  true,
                   "maxSentences":  3,
-                  "groqVoice":  "lulwa"
+                  "groqVoice":  "lulwa",
+                  "gain":  "1.5"
               },
     "school":  {
                    "name":  "مدرسة بديع لتعليم السياقة",

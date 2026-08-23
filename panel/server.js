@@ -202,6 +202,7 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
       if (typeof body.replyToVoice === "boolean") voice.replyToVoice = body.replyToVoice;
       if (typeof body.maxSentences === "number" && body.maxSentences >= 1) voice.maxSentences = Math.round(body.maxSentences);
       if (typeof body.groqVoice === "string" && body.groqVoice.trim()) voice.groqVoice = body.groqVoice.trim();
+      if (body.gain !== undefined) { const g = parseFloat(body.gain); if (!isNaN(g) && g >= 0.5 && g <= 4) voice.gain = String(g); }
       const upd = await updateStore(() => s);
       await getStore().then(async () => { if (onConfigChanged) await onConfigChanged(upd); });
       res.json({ ok: true, ai: upd.ai, voice: upd.voice });

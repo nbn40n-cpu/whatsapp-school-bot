@@ -22,6 +22,7 @@ async function aiSettings() {
     rate: s.voice?.rate || "-8%",
     pitch: s.voice?.pitch || "-1Hz",
     groqVoice: s.voice?.groqVoice || "lulwa",
+    gain: s.voice?.gain != null ? String(s.voice.gain) : "1.5",
   };
 }
 
@@ -502,6 +503,8 @@ export async function textToSpeech(text) {
       } else {
         ffArgs.push("-i", wavs[0]);
       }
+      const gain = parseFloat(settings.gain);
+      if (!isNaN(gain) && gain !== 1) ffArgs.push("-af", `volume=${gain}`);
       ffArgs.push("-c:a", "libopus", "-b:a", "48k", oggFile);
       await execFileAsync(ffmpegPath, ffArgs);
       return { buffer: await readFile(oggFile), mimetype: "audio/ogg; codecs=opus" };
@@ -511,7 +514,11 @@ export async function textToSpeech(text) {
   }
   try {
     await runEdgeTTS(["--voice", settings.voice, "--rate=" + settings.rate, "--pitch=" + settings.pitch, "--text", natural, "--write-media", mp3File]);
-    await execFileAsync(ffmpegPath, ["-y", "-i", mp3File, "-c:a", "libopus", "-b:a", "48k", oggFile]);
+    const egain = parseFloat(settings.gain);
+    const eargs = ["-y", "-i", mp3File];
+    if (!isNaN(egain) && egain !== 1) eargs.push("-af", `volume=${egain}`);
+    eargs.push("-c:a", "libopus", "-b:a", "48k", oggFile);
+    await execFileAsync(ffmpegPath, eargs);
     const buffer = await readFile(oggFile);
     return { buffer, mimetype: "audio/ogg; codecs=opus" };
   } catch (error) {
