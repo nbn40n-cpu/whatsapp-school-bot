@@ -330,7 +330,7 @@ function showView(v) {
   $("viewMain").classList.toggle("hidden", v !== "main");
 }
 
-function logout() { TOKEN = ""; localStorage.removeItem("panel_token"); showView("login"); }
+function logout() { TOKEN = ""; localStorage.removeItem("panel_token"); relativesDirty = false; showView("login"); }
 
 function setPill(kind, ok, txt) {
   const el = $(kind === "bot" ? "txtPillBot" : "txtPillWa");
@@ -381,7 +381,7 @@ async function refresh() {
       renderLogs(d);
       renderReplies();
       if (!numbersDirty) renderNumbers();
-      renderRelatives();
+      if (!relativesDirty) renderRelatives();
       if (!settingsDirty) renderSettings();
       if (!schoolDirty) renderSchool();
       if (!stylesDirty) renderStyles();
@@ -781,6 +781,9 @@ $("btnSaveSchool").onclick = async () => {
   } catch (e) { toast(e.message); }
 };
 
+let relativesDirty = false;
+function markRelatives() { relativesDirty = true; }
+
 function relativeCard(r) {
   const div = document.createElement("div");
   div.className = "card";
@@ -801,7 +804,11 @@ function relativeCard(r) {
       <span class="muted" style="flex:1"></span>
       <button class="danger sm" data-del>🗑 حذف</button>
     </div>`;
-  div.querySelector("[data-del]").onclick = () => div.remove();
+  div.querySelectorAll("input").forEach((inp) => {
+    inp.addEventListener("input", markRelatives);
+    inp.addEventListener("change", markRelatives);
+  });
+  div.querySelector("[data-del]").onclick = () => { markRelatives(); div.remove(); };
   return div;
 }
 function collectRelatives() {
@@ -840,11 +847,18 @@ $("btnAddRelative").onclick = () => {
   const ph = ed.querySelector("p.muted");
   if (ph) ph.remove();
   ed.appendChild(relativeCard({ active: true }));
+  markRelatives();
 };
 $("btnSaveRelatives").onclick = async () => {
   try {
-    const saved = await api("/panel/api/relatives", { method: "PUT", body: { relatives: collectRelatives() } });
-    if (saved.ok) { toast("تم حفظ الأقارب ✅"); await refresh(); }
+    const total = document.querySelectorAll("#relativesEditor .card").length;
+    const list = collectRelatives();
+    const saved = await api("/panel/api/relatives", { method: "PUT", body: { relatives: list } });
+    if (saved.ok) {
+      toast(total > list.length ? "انحفظ، بس في بطاقة بدون رقم صحيح ما انضافت ⚠️ اكتب الرقم وخزّن من جديد" : "تم حفظ الأقارب ✅", 3500);
+      relativesDirty = false;
+      await refresh();
+    }
   } catch (e) { toast(e.message); }
 };
 
