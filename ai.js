@@ -1,7 +1,7 @@
 import Groq from "groq-sdk";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import ffmpegPath from "ffmpeg-static";
 import { getSchoolInfo, getStyles, getLearningBlock } from "./school-context.js";
 import { getStore } from "./store.js";
@@ -21,6 +21,7 @@ async function aiSettings() {
     voice: s.voice?.voice || "ar-JO-SanaNeural",
     rate: s.voice?.rate || "-8%",
     pitch: s.voice?.pitch || "-1Hz",
+    groqVoice: s.voice?.groqVoice || "lulwa",
   };
 }
 
@@ -446,6 +447,36 @@ export function toColloquial(t) {
   return s.replace(/\s{2,}/g, " ").replace(/[ \t]+([.,!?؛؟"])/g, "$1").trim();
 }
 
+const GROQ_TTS_URL = "https://api.groq.com/openai/v1/audio/speech";
+const GROQ_TTS_MODEL = "canopylabs/orpheus-arabic-saudi";
+const GROQ_TTS_MAX = 195;
+
+function splitTTSChunks(t) {
+  const s = (t || "").trim();
+  if (!s) return [];
+  if (s.length <= GROQ_TTS_MAX) return [s];
+  const chunks = [];
+  let rest = s;
+  while (rest.length > GROQ_TTS_MAX) {
+    let cut = rest.lastIndexOf(" ", GROQ_TTS_MAX);
+    if (cut < GROQ_TTS_MAX / 2) cut = GROQ_TTS_MAX;
+    chunks.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+  if (rest) chunks.push(rest);
+  return chunks;
+}
+
+async function groqSpeak(chunk, voice) {
+  const res = await fetch(GROQ_TTS_URL, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: GROQ_TTS_MODEL, input: chunk, voice: voice || "lulwa", response_format: "wav" }),
+  });
+  if (!res.ok) throw new Error(`Groq TTS HTTP ${res.status}: ${(await res.text()).slice(0, 120)}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
 export async function textToSpeech(text) {
   const tmpDir = process.env.TMPDIR || "/tmp";
   const uniq = `${Date.now()}_${Math.floor(Math.random() * 9999)}`;
@@ -453,6 +484,31 @@ export async function textToSpeech(text) {
   const oggFile = `${tmpDir}/tts_${uniq}_out.ogg`;
   const natural = toColloquial(text);
   const settings = await aiSettings();
+  if (process.env.GROQ_API_KEY) {
+    try {
+      const chunks = splitTTSChunks(natural);
+      if (!chunks.length) throw new Error("نص فارغ");
+      const wavs = [];
+      for (let i = 0; i < chunks.length; i++) {
+        const p = `${tmpDir}/tts_${uniq}_${i}.wav`;
+        await writeFile(p, await groqSpeak(chunks[i], settings.groqVoice));
+        wavs.push(p);
+      }
+      const ffArgs = ["-y"];
+      if (wavs.length > 1) {
+        const listFile = `${tmpDir}/tts_${uniq}_list.txt`;
+        await writeFile(listFile, wavs.map((p) => `file '${p.replace(/\\/g, "/")}'`).join("\n") + "\n");
+        ffArgs.push("-f", "concat", "-safe", "0", "-i", listFile);
+      } else {
+        ffArgs.push("-i", wavs[0]);
+      }
+      ffArgs.push("-c:a", "libopus", "-b:a", "48k", oggFile);
+      await execFileAsync(ffmpegPath, ffArgs);
+      return { buffer: await readFile(oggFile), mimetype: "audio/ogg; codecs=opus" };
+    } catch (error) {
+      console.error("Groq TTS Error (fallback edge-tts):", error.message);
+    }
+  }
   try {
     await runEdgeTTS(["--voice", settings.voice, "--rate=" + settings.rate, "--pitch=" + settings.pitch, "--text", natural, "--write-media", mp3File]);
     await execFileAsync(ffmpegPath, ["-y", "-i", mp3File, "-c:a", "libopus", "-b:a", "48k", oggFile]);

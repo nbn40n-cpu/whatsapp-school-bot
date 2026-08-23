@@ -288,6 +288,7 @@ async function sendVoice(sock, to, text) {
   try {
     const clean = sanitizeReply(text);
     const short = shortenForVoice(clean);
+    if (/https?:\/\//i.test(short)) return await sendMsg(sock, to, clean);
     const tts = await textToSpeech(short);
     if (!tts) return await sendMsg(sock, to, short);
     const sent = await sock.sendMessage(to, {
@@ -617,7 +618,10 @@ const FULL = {
     return "التكلفة بتعتمد على نوع الرخصة، شو نوعها؟ (خصوصي، شحن خفيف، ثقيل، باص، تراكتور)";
   }
   if (has("الامتحان النظري", "التوريا") && (has("وين", "مكان", "دائرة", "أين"))) return "الامتحان النظري (التوريا) بدائرة السير بمنطقة عزيز، على طريق المستشفى.";
-  if (has("رابط التوريا") || has("للتوريا") || (hasWord("ادرس", "اقرا", "أدرس", "دراسة", "الدراسة", "روابط", "الروابط", "ابحث", "اتعلم") && hasWord("توريا", "نظري", "نظريه", "نظرية", "شو ادرس", "وين الروابط"))) return "للمذاكرة للتوريا، بادرس من الرابط هاد: https://nbn40n-cpu.github.io/samir-teoria.github.io/ وبتشوف نتيجة الامتحان النظري على: https://www.mot.gov.ps/theoretical-exam";
+  if (has("دوسية", "الدوسية", "دوسيه", "الدوسيه", "رابط", "لينك", "شو ادرس", "بدي ادرس", "بدني ادرس", "وين ادرس", "ازا اذاكر", "كيف اذاكر", "شو اذاكر", "بدي ذاكر", "اذاكر", "مذاكرة", "المذاكرة", "المذاكره") || ((has("ادرس", "اقرا", "أدرس", "دراسة", "الدراسة", "روابط", "الروابط", "ابحث", "اتعلم")) && !hasWord("مدرب", "المدربين"))) {
+    if (has("عملي")) return "رابط نتيجة العملي: https://www.mot.gov.ps/practical-exam";
+    return "للمذاكرة للتوريا، بادرس من الرابط هاد: https://nbn40n-cpu.github.io/samir-teoria.github.io/ وبتشوف نتيجة الامتحان النظري على: https://www.mot.gov.ps/theoretical-exam";
+  }
   if (has("امتحان", "الامتحان", "أيام الامتحان", "متى الامتحان")) {
     if (has("عملي")) return "التيست العملي: أحد وثلاثاء.";
     if (has("شفهي")) return "الشفهي: اثنين وخميس.";

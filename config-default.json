@@ -20,7 +20,8 @@
                   "rate":  "-8%",
                   "pitch":  "-1Hz",
                   "replyToVoice":  true,
-                  "maxSentences":  3
+                  "maxSentences":  3,
+                  "groqVoice":  "lulwa"
               },
     "school":  {
                    "name":  "مدرسة بديع لتعليم السياقة",

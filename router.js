@@ -32,7 +32,7 @@ function matchEntry(raw, norm, e) {
 
 // مدخلات ظلّتها handleFAQ بمنطق أذكى (سياق النوع) — محظورة من المخزن نهائياً حتى لو رجعت active
 const STORE_SKIP_IDS = new Set([
-  "faq-005", "faq-008", "faq-010", "faq-011", "faq-012",
+  "faq-005", "faq-008", "faq-010", "faq-011", "faq-012", "faq-013",
   "faq-017", "faq-018", "faq-019", "faq-020", "faq-021", "faq-022",
   "faq-mt1xm6jg-6n9",
 ]);

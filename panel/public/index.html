@@ -83,11 +83,11 @@
   <div id="viewMain" class="hidden">
     <div class="row" style="margin-top:12px;gap:6px">
       <button class="ghost sm" data-tab="dashboard">📊 لوحة الحالة</button>
-      <button class="ghost sm" data-tab="replies">💬 الردود</button>
-      <button class="ghost sm" data-tab="numbers">📞 الأرقام</button>
+      <button class="ghost sm" data-tab="replies">💬 الردود العامة</button>
+      <button class="ghost sm" data-tab="numbers">👥 الشخصيات</button>
       <button class="ghost sm" data-tab="settings">⚙️ الإعدادات</button>
       <button class="ghost sm" data-tab="school">🏫 المدرسة</button>
-      <button class="ghost sm" data-tab="styles">🎭 الشخصيات</button>
+      <button class="ghost sm" data-tab="styles">🎭 أسلوب الرد</button>
       <button class="ghost sm" data-tab="learn">🎓 تعلم سوزي</button>
     </div>
 
@@ -121,9 +121,10 @@
 
     <div class="section hidden" id="secReplies">
       <div class="row" style="align-items:center;justify-content:space-between">
-        <h3 style="margin:0">💬 الردود الجاهزة</h3>
-        <button class="ok sm" id="btnNewReply">+ رد جديد</button>
+        <h3 style="margin:0">💬 الردود العامة</h3>
+        <button class="ok sm" id="btnNewReply">+ إضافة سؤال/رد جديد</button>
       </div>
+      <p class="muted">اضغط «+ إضافة سؤال/رد جديد»: اكتب الكلمات المفتاحية (بالعامية مثل ما بيكتبها الطالب) والرد، واضغط حفظ — بيظهر فوراً بالقائمة تحت مع الموجودين، والبوت بصير يرد فيه مباشرة. من كل بطاقة فيك تعدل ✏ أو تعطّل ⏸ أو تحذف 🗑.</p>
       <div class="card" style="margin-top:10px">
         <div class="row">
           <input id="fqSearch" placeholder="ابحث في الردود...">
@@ -157,10 +158,10 @@
 
     <div class="section hidden" id="secNumbers">
       <div class="row" style="align-items:center;justify-content:space-between">
-        <h3 style="margin:0">📞 الأرقام والفئات</h3>
-        <button class="ok sm" id="btnSaveNumbers">💾 حفظ الأرقام</button>
+        <h3 style="margin:0">👥 الشخصيات — صلة القرابة ورقم التلفون</h3>
+        <button class="ok sm" id="btnSaveNumbers">💾 حفظ الشخصيات</button>
       </div>
-      <p class="muted">عدّل الأرقام والأسماء ثم احفظ. كل فئة لها قائمة تُطبَّق مباشرة على البوت.</p>
+      <p class="muted">هون بتضيف وتعدّل أي شخصية: كل فئة هي صلة القرابة (عائلة المدير/الزوجات، الأقرباء المقربين، المدربين...). اضغط «+ إضافة رقم» داخل الفئة، اكتب الرقم والاسم مع صلة القرابة، وبعدين 💾 حفظ — بتنطبق على البوت فوراً. للحذف اضغط ✕ جنب السطر.</p>
       <div id="numbersEditor"></div>
     </div>
 
@@ -181,8 +182,17 @@
         <input id="aiMax" type="number" min="10">
       </div>
       <div class="card" style="margin-top:12px">
-        <b>الصوت (edge-tts)</b>
-        <label>الصوت</label>
+        <b>🎙 الصوت — Groq واقعي (أساسي) + edge-tts (احتياط)</b>
+        <label>صوت سوزي الواقعي (Groq Orpheus — لو فشل بيشتغل edge تلقائياً)</label>
+        <select id="aiGroqVoice">
+          <option value="lulwa">أنثى (Lulwa) — الافتراضي</option>
+          <option value="noura">أنثى (Noura)</option>
+          <option value="aisha">أنثى (Aisha)</option>
+          <option value="abdullah">ذكر (Abdullah)</option>
+          <option value="fahad">ذكر (Fahad)</option>
+          <option value="sultan">ذكر (Sultan)</option>
+        </select>
+        <label>الصوت الاحتياطي (edge-tts)</label>
         <select id="aiVoice">
           <option value="ar-JO-SanaNeural">أنثى أردنية (Sana)</option>
           <option value="ar-JO-TaimNeural">ذكر أردني (Taim)</option>
@@ -498,11 +508,11 @@ $("btnSaveReply").onclick = async () => {
 };
 
 const NUMBER_GROUPS = [
-  { key: "owner", label: "المدير", single: true },
-  { key: "boss", label: "صاحب المدرسة" },
-  { key: "family", label: "العائلة (أسماء)" },
-  { key: "intimate", label: "الأقرباء/المقربين" },
-  { key: "trainers", label: "المدربين (أسماء)" },
+  { key: "owner", label: "👤 المدير سمير", single: true, ph: "" },
+  { key: "boss", label: "🧔 صاحب المدرسة", ph: "الاسم (اختياري)" },
+  { key: "family", label: "👨‍👩‍👧 عائلة المدير (الزوجات)", ph: "الاسم وصلة القرابة (مثال: هدى أم آدم)" },
+  { key: "intimate", label: "💕 الأقرباء/المقربين", ph: "الاسم وصلة القرابة (مثال: أبو محمد - خال سمير)" },
+  { key: "trainers", label: "🎓 المدربين", ph: "اسم المدرب (مثال: رائد أبو صبحة)" },
 ];
 const TRAINER_REG = (x) => /^(05|2|5)/.test(x || "");
 let numbersDirty = false;
@@ -541,7 +551,7 @@ function addNumberRow(wrap, g, num, edited) {
   const nameVal = edited.family?.[num] || edited.trainers?.[num] || "";
   div.innerHTML = `
     <input data-num="${g.key}" dir="ltr" placeholder="05xxxxxxxx" value="${num}" style="max-width:150px">
-    <input data-name="${g.key}" placeholder="الاسم (اختياري)" value="${nameVal}" style="flex:1">
+    <input data-name="${g.key}" placeholder="${g.ph || "الاسم (اختياري)"}" value="${nameVal}" style="flex:1">
     <button class="danger sm" data-rm>✕</button>`;
   div.querySelector("[data-rm]").onclick = () => { div.remove(); };
   div.querySelectorAll("input").forEach((inp) => inp.addEventListener("input", () => { numbersDirty = true; }));
@@ -585,12 +595,20 @@ function renderSettings() {
     sel.appendChild(opt);
   }
   sel.value = currentVoice;
+  const gv = voice.groqVoice || "lulwa";
+  if (!Array.from($("aiGroqVoice").options).some((o) => o.value === gv)) {
+    const opt = document.createElement("option");
+    opt.value = gv; opt.textContent = "مخصص: " + gv;
+    $("aiGroqVoice").appendChild(opt);
+  }
+  $("aiGroqVoice").value = gv;
   $("aiRate").value = voice.rate || "";
   $("aiPitch").value = voice.pitch || "";
   $("aiReplyVoice").checked = voice.replyToVoice !== false;
   $("aiPrimary").oninput = markSettings; $("aiFallbacks").oninput = markSettings;
   $("aiTemp").oninput = markSettings; $("aiMax").oninput = markSettings;
   $("aiVoice").onchange = markSettings; $("aiRate").oninput = markSettings;
+  $("aiGroqVoice").onchange = markSettings;
   $("aiPitch").oninput = markSettings; $("aiReplyVoice").onchange = markSettings;
 }
 function markSettings() { settingsDirty = true; }
@@ -602,6 +620,7 @@ $("btnSaveAi").onclick = async () => {
     temperature: parseFloat($("aiTemp").value),
     maxTokens: parseInt($("aiMax").value, 10),
     voice: $("aiVoice").value.trim(),
+    groqVoice: $("aiGroqVoice").value.trim(),
     rate: $("aiRate").value.trim(),
     pitch: $("aiPitch").value.trim(),
     replyToVoice: $("aiReplyVoice").checked,
