@@ -22,6 +22,7 @@
                   "replyToVoice":  true,
                   "maxSentences":  3,
                   "groqVoice":  "lulwa",
+                  "provider":  "groq",
                   "gain":  "1.5"
               },
     "school":  {

@@ -182,18 +182,26 @@
         <input id="aiMax" type="number" min="10">
       </div>
       <div class="card" style="margin-top:12px">
-        <b>🎙 الصوت — Groq واقعي (أساسي) + edge-tts (احتياط)</b>
-        <label>صوت سوزي الواقعي (Groq Orpheus — لو فشل بيشتغل edge تلقائياً)</label>
-        <select id="aiGroqVoice">
-          <option value="lulwa">أنثى (Lulwa) — الافتراضي</option>
-          <option value="noura">أنثى (Noura)</option>
-          <option value="aisha">أنثى (Aisha)</option>
-          <option value="abdullah">ذكر (Abdullah)</option>
-          <option value="fahad">ذكر (Fahad)</option>
-          <option value="sultan">ذكر (Sultan)</option>
+        <b>🎙 الصوت</b>
+        <label>مزود الصوت</label>
+        <select id="aiProvider">
+          <option value="groq">Groq الواقعي (موصى به)</option>
+          <option value="edge">edge-tts الكلاسيكي (أردني/مصري/لبناني...)</option>
         </select>
-        <label>الصوت الاحتياطي (edge-tts)</label>
-        <select id="aiVoice">
+        <div id="groqVoiceWrap">
+          <label>صوت Groq الواقعي (لو فشل بيشتغل edge تلقائياً)</label>
+          <select id="aiGroqVoice">
+            <option value="lulwa">أنثى سعودية (Lulwa) — الافتراضي</option>
+            <option value="noura">أنثى سعودية (Noura)</option>
+            <option value="aisha">أنثى سعودية (Aisha)</option>
+            <option value="abdullah">ذكر سعودي (Abdullah)</option>
+            <option value="fahad">ذكر سعودي (Fahad)</option>
+            <option value="sultan">ذكر سعودي (Sultan)</option>
+          </select>
+        </div>
+        <div id="edgeVoiceWrap">
+          <label>صوت edge</label>
+          <select id="aiVoice">
           <option value="ar-JO-SanaNeural">أنثى أردنية (Sana)</option>
           <option value="ar-JO-TaimNeural">ذكر أردني (Taim)</option>
           <option value="ar-LB-LaylaNeural">أنثى لبنانية (Layla)</option>
@@ -207,7 +215,8 @@
           <option value="ar-SY-AmanyNeural">أنثى سورية (Amany)</option>
           <option value="ar-SY-LaithNeural">ذكر سوري (Laith)</option>
           <option value="ar-IQ-AzizNeural">ذكر عراقي (Aziz)</option>
-        </select>
+          </select>
+        </div>
         <label>السرعة</label>
         <input id="aiRate" placeholder="-8%">
         <label>قوة الصوت (1 = عادي، 1.5 = أعلى، 2 = قوي)</label>
@@ -604,6 +613,14 @@ function renderSettings() {
     $("aiGroqVoice").appendChild(opt);
   }
   $("aiGroqVoice").value = gv;
+  const prov = voice.provider || "groq";
+  $("aiProvider").value = prov;
+  const vis = () => { const p = $("aiProvider").value; $("groqVoiceWrap").style.display = p === "edge" ? "none" : ""; $("edgeVoiceWrap").style.display = p === "edge" ? "" : "none"; };
+  vis();
+  if (!$("aiProvider").dataset.wired) {
+    $("aiProvider").addEventListener("change", () => { markSettings(); vis(); });
+    $("aiProvider").dataset.wired = "1";
+  }
   $("aiRate").value = voice.rate || "";
   $("aiGain").value = voice.gain != null ? voice.gain : "1.5";
   $("aiPitch").value = voice.pitch || "";
@@ -625,6 +642,7 @@ $("btnSaveAi").onclick = async () => {
     maxTokens: parseInt($("aiMax").value, 10),
     voice: $("aiVoice").value.trim(),
     groqVoice: $("aiGroqVoice").value.trim(),
+    voiceProvider: $("aiProvider").value,
     rate: $("aiRate").value.trim(),
     gain: $("aiGain").value.trim(),
     pitch: $("aiPitch").value.trim(),

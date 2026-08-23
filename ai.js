@@ -22,6 +22,7 @@ async function aiSettings() {
     rate: s.voice?.rate || "-8%",
     pitch: s.voice?.pitch || "-1Hz",
     groqVoice: s.voice?.groqVoice || "lulwa",
+    provider: s.voice?.provider || "groq",
     gain: s.voice?.gain != null ? String(s.voice.gain) : "1.5",
   };
 }
@@ -485,7 +486,7 @@ export async function textToSpeech(text) {
   const oggFile = `${tmpDir}/tts_${uniq}_out.ogg`;
   const natural = toColloquial(text);
   const settings = await aiSettings();
-  if (process.env.GROQ_API_KEY) {
+  if (process.env.GROQ_API_KEY && settings.provider !== "edge") {
     try {
       const chunks = splitTTSChunks(natural);
       if (!chunks.length) throw new Error("نص فارغ");
