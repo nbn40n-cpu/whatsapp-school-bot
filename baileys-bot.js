@@ -14,6 +14,9 @@ const PHONE = process.env.SCHOOL_PHONE || "0568444407";
 let FAMILY_NUMBERS = ["0568828240", "0569268867", "0568828238"];
 let FAMILY_NAMES = { "0568828240": "نهال أم محمد", "0569268867": "هدى أم آدم", "0568828238": "سميرة أم منذر" };
 let INTIMATE_NUMBERS = ["0598742654"];
+let SIBLINGS_NUMBERS = [];
+let SIBLINGS_NAMES = {};
+const RELATIVE_INFO = new Map();
 let BOSS_NUMBERS = ["0568444405"];
 let TRAINER_NUMBERS = ["0562400502", "0568030693", "0568331002", "0562400404"];
 let TRAINER_NAMES = { "0562400502": "رائد أبو صبحة", "0568030693": "عمار أبو قبيطة", "0568331002": "بديع الصغير", "0562400404": "منال" };
@@ -31,12 +34,14 @@ const BOSS_GREETING_VARIANTS = [
   "صباح النور منور أبو حسين، أهلاً وسهلاً، كيفك شو أخبارك، ربنا يقويك. أنا المساعدة للاستاذ سمير، شو بقدر أساعدك تفضل أبو حسين؟"
 ];
 const BOSS_FAREWELLS = ["مع الف سلامة حج، الله يسعدك، كل الاحترام لك.", "مع ألف سلامة أبو حسين، الله يسعدك ويحفظك، نورتنا."];
-const GREETING = "أهلاً وسهلاً فيك في مدرسة البديع لتعليم السياقة، تفضل، بشو بقدر أخدمك؟";
+const STUDENT_GREETING_VARIANTS = ["أهلاً {name} 🌹 {tg}", "هلا والله {name} 😊 {tg}", "{tg} {name} 🌹", "أهلاً وسهلاً {name} 🌹 {tg}"];
 const FAMILY_GREETING = "هلا نورتينا 🌷";
 const INTIMATE_GREETING = "هلا والله انتيمة، نورتي، شو أخبارك اليوم؟";
 const INTIMATE_OWNER_REPLY = "إذا في أمر ضروري اتصلي مباشرة بحبيبك، وإذا مش ضروري بس يشوف الرسالة رح يرجعلك لأنه مضغوط معه درس عملي.";
 const INTIMATE_FAREWELLS = ["مع السلامة، يومك سعيد، انبسطت بالحديث معك يا صديقتي، ديري بالك على حالك.", "مع ألف سلامة حبيبتي، إلهي يومك سعيد، كل ما بدك إياه إحنا موجودين، ديري بالك."];
 const FAMILY_FAREWELLS = ["مع السلامة حبيبتي، الله يسعدك 🌷", "مع السلامة نورتينا، ديري بالك على حالك."];
+const SIBLINGS_GREETING_VARIANTS = ["هلا والله يا غالي 🌹", "أهلاً بأخ سمير، نورت 🌹", "هلا بالغالي، شو أخبارك؟"];
+const SIBLINGS_FAREWELLS = ["مع السلامة يا غالي، الله يسعدك 🌹", "مع ألف سلامة يا غالي، نورت.", "يسلمو يا غالي، الله يحفظك."];
 const FAREWELLS = ["العفو، أهلين وسهلين فيك. إذا احتجت أي استفسار ثاني إحنا موجودين.", "على الرحب والسعة، بالتوفيق لك."];
 const GOODBYES = ["مع السلامة، بالتوفيق لك. بننتظرك في أي وقت.", "في أمان الله، بالتوفيق، أهلين وسهلين فيك في أي وقت."];
 const OWNER_WHERE_PATTERN = /(وين سمير|اين سمير|وين الاستاذ|سمير مشغول|وين المدير|توفر سمير|بدي احكي مع سمير|وين المدرب|وين شمير|بدي احكي مع شمير)/i;
@@ -125,16 +130,32 @@ function matchesPn(pn, num) {
 }
 function isFamily(from, msg) { const pn = pnOf(from, msg); return FAMILY_NUMBERS.some(n => matchesPn(pn, n)); }
 function isIntimate(from, msg) { const pn = pnOf(from, msg); return INTIMATE_NUMBERS.some(n => matchesPn(pn, n)); }
+function isSibling(from, msg) { const pn = pnOf(from, msg); return SIBLINGS_NUMBERS.some(n => matchesPn(pn, n)); }
+function siblingName(from, msg) { const pn = pnOf(from, msg); const n = SIBLINGS_NUMBERS.find(n => matchesPn(pn, n)); return SIBLINGS_NAMES[n] || ""; }
+function relativeNote(from, msg) {
+  const pn = pnOf(from, msg);
+  const key = SIBLINGS_NUMBERS.find(n => matchesPn(pn, n));
+  const info = key ? RELATIVE_INFO.get(key) : null;
+  if (!info) return "";
+  const bits = [];
+  if (info.name) bits.push(`اسمه ${info.name}`);
+  if (info.relation) bits.push(`${info.relation} لسمير`);
+  let t = "\n[الشخص اللي عم تحكي معه الآن: ";
+  t += bits.length ? bits.join("، ") : "قريب من سمير";
+  if (info.notes) t += ` — ملاحظات: ${info.notes}`;
+  if (info.styleNote) t += ` — أسلوب التعامل معه: ${info.styleNote}`;
+  return t + ". استخدمي هالمعلومات بالنداء والأسلوب فقط، ولا تخترعي معلومات غيرها]\n";
+}
 function isBoss(from, msg) { const pn = pnOf(from, msg); return BOSS_NUMBERS.some(n => matchesPn(pn, n)); }
 function isTrainer(from, msg) { const pn = pnOf(from, msg); return TRAINER_NUMBERS.some(n => matchesPn(pn, n)); }
 function trainerName(from, msg) { const pn = pnOf(from, msg); const n = TRAINER_NUMBERS.find(n => matchesPn(pn, n)); return TRAINER_NAMES[n] || ""; }
 function familyName(from, msg) { const pn = pnOf(from, msg); const n = FAMILY_NUMBERS.find(n => matchesPn(pn, n)); return FAMILY_NAMES[n] || ""; }
 function studentName(from, msg) { const pn = pnOf(from, msg); const num = Object.keys(STUDENT_NAMES).find(n => matchesPn(pn, n)); return num ? STUDENT_NAMES[num] : ""; }
-function callerName(from, msg) { return familyName(from, msg) || studentName(from, msg) || (isTraining(from) ? trainerName(from, msg) : "") || (isIntimate(from, msg) ? "الانتيمة" : ""); }
+function callerName(from, msg) { return siblingName(from, msg) || familyName(from, msg) || studentName(from, msg) || (isTraining(from) ? trainerName(from, msg) : "") || (isIntimate(from, msg) ? "الانتيمة" : ""); }
 function isTraining(from, msg) { return isTrainer(from, msg) || isBoss(from, msg); }
 function learnStudentName(jid, msg, text) {
   try {
-    if (isFamily(jid, msg) || isIntimate(jid, msg) || isBoss(jid, msg) || isTrainer(jid, msg) || jid === ownerJid) return;
+    if (isFamily(jid, msg) || isIntimate(jid, msg) || isSibling(jid, msg) || isBoss(jid, msg) || isTrainer(jid, msg) || jid === ownerJid) return;
     const m = String(text || "").match(/اسمي\s+([\u0600-\u06FF]{2,15}(?:\s+[\u0600-\u06FF]{2,15})?)/);
     if (!m) return;
     const nm = m[1].trim();
@@ -208,7 +229,7 @@ async function scanSuggestion(ownerA) {
       const knownTails = new Set();
       const addTail = (p) => { const d = String(p || "").replace(/\D/g, ""); if (d.length >= 9) knownTails.add(d.slice(-9)); };
       addTail(PHONE);
-      for (const arr of [FAMILY_NUMBERS, INTIMATE_NUMBERS, BOSS_NUMBERS, TRAINER_NUMBERS]) for (const p of arr || []) addTail(p);
+      for (const arr of [FAMILY_NUMBERS, INTIMATE_NUMBERS, SIBLINGS_NUMBERS, BOSS_NUMBERS, TRAINER_NUMBERS]) for (const p of arr || []) addTail(p);
       for (const ph of phones) {
         if (knownTails.has(ph.slice(-9))) continue;
         if (sug.some((x) => x.status === "pending" && x.kind === "phone" && x.value === ph)) continue;
@@ -318,10 +339,11 @@ async function handleMsg(sock, msg, jid) {
   const content = msg.message || {};
   const fam = isFamily(jid, msg);
   const intimate = isIntimate(jid, msg);
+  const sibling = isSibling(jid, msg);
   const boss = isBoss(jid, msg);
   const trainer = isTrainer(jid, msg);
   const owner = isOwner(jid);
-  const special = fam || intimate;
+  const special = fam || intimate || sibling;
   trackChat(jid);
   if (!text && content.audioMessage) {
     try {
@@ -346,7 +368,7 @@ async function handleMsg(sock, msg, jid) {
       seen.add(key);
       console.log(`🎤 ${jid}: ${transcript.slice(0, 60)}`);
       if (await routeText(sock, msg, jid, transcript, true)) return;
-      const reply = await getAIResponse(transcript, fam, intimate, boss, trainer, false, jid);
+      const reply = await getAIResponse(transcript, fam, intimate, boss, trainer, false, jid, sibling, sibling ? relativeNote(jid, msg) : "");
       await sendVoice(sock, jid, reply);
       return;
     } catch (e) {
@@ -369,7 +391,7 @@ async function handleMsg(sock, msg, jid) {
   pushEvent({ dir: "in", from: jid, text, kind: "text" });
   learnStudentName(jid, msg, text);
   if (await routeText(sock, msg, jid, text)) return;
-  const reply = await getAIResponse(text, fam, intimate, boss, trainer, false, jid);
+  const reply = await getAIResponse(text, fam, intimate, boss, trainer, false, jid, sibling, sibling ? relativeNote(jid, msg) : "");
   if (reply === ERROR_REPLY) {
     bumpCounter("unanswered").then(v => v);
     setLastError("ذكاء عجز عن الرد لـ" + jid);
@@ -389,9 +411,10 @@ async function handleMsg(sock, msg, jid) {
 async function routeText(sock, msg, jid, text, asVoice = false) {
   const fam = isFamily(jid, msg);
   const intimate = isIntimate(jid, msg);
+  const sibling = isSibling(jid, msg);
   const boss = isBoss(jid, msg);
   const trainer = isTrainer(jid, msg);
-  const special = fam || intimate || boss || trainer;
+  const special = fam || intimate || boss || trainer || sibling;
   const t = normAr(text);
   const respond = asVoice ? (txt) => sendVoice(sock, jid, txt) : (txt) => sendMsg(sock, jid, txt);
 
@@ -403,6 +426,10 @@ async function routeText(sock, msg, jid, text, asVoice = false) {
     let g;
     if (boss) g = BOSS_GREETING_VARIANTS[Math.floor(Math.random() * BOSS_GREETING_VARIANTS.length)];
     else if (trainer) g = TRAINER_GREETING_VARIANTS[Math.floor(Math.random() * TRAINER_GREETING_VARIANTS.length)].replace("{name}", trainerName(jid, msg));
+    else if (sibling) {
+      const sname = siblingName(jid, msg);
+      g = sname ? `هلا والله ${sname} 🌹` : SIBLINGS_GREETING_VARIANTS[Math.floor(Math.random() * SIBLINGS_GREETING_VARIANTS.length)];
+    }
     else if (intimate) g = INTIMATE_GREETING;
     else {
       if (!fname) g = FAMILY_GREETING;
@@ -453,6 +480,7 @@ async function routeText(sock, msg, jid, text, asVoice = false) {
     if (boss) await respond(BOSS_FAREWELLS[Math.floor(Math.random() * BOSS_FAREWELLS.length)]);
     else if (trainer) await respond(TRAINER_FAREWELLS[Math.floor(Math.random() * TRAINER_FAREWELLS.length)]);
     else if (intimate) await respond(INTIMATE_FAREWELLS[Math.floor(Math.random() * INTIMATE_FAREWELLS.length)]);
+    else if (sibling) await respond(SIBLINGS_FAREWELLS[Math.floor(Math.random() * SIBLINGS_FAREWELLS.length)]);
     else if (fam) await respond(FAMILY_FAREWELLS[Math.floor(Math.random() * FAMILY_FAREWELLS.length)]);
     else await respond(GOODBYES[Math.floor(Math.random() * GOODBYES.length)]);
     return true;
@@ -462,7 +490,7 @@ async function routeText(sock, msg, jid, text, asVoice = false) {
     return true;
   }
   // كلمة إنهاء حديث من طالب: ماشي/تمام/ان شاء الله/مع السلامة... رد وداع وخلاص، بدون ترجيع سؤال
-  if (!fam && !intimate && !boss && !trainer && jid !== ownerJid && isEndChat(text)) {
+  if (!fam && !intimate && !boss && !trainer && !sibling && jid !== ownerJid && isEndChat(text)) {
     await respond(GOODBYES[Math.floor(Math.random() * GOODBYES.length)]);
     return true;
   }
@@ -475,7 +503,8 @@ async function routeText(sock, msg, jid, text, asVoice = false) {
     if (bare) {
       const nm = studentName(jid, msg);
       const tg = timeGreeting();
-      await respond(nm ? `أهلاً وسهلاً فيك يا ${nm} 🌹 ${tg}` : `أهلاً وسهلاً فيك 🌹 ${tg}`);
+      const pick = STUDENT_GREETING_VARIANTS[Math.floor(Math.random() * STUDENT_GREETING_VARIANTS.length)];
+      await respond(pick.replace(/{name}/g, nm ? `يا ${nm}` : "").replace(/{tg}/g, tg).replace(/\s{2,}/g, " ").trim());
       return true;
     }
   }
@@ -664,6 +693,22 @@ async function applyStoreNumbers() {
     if (!s || !s.numbers) return;
     if (Array.isArray(s.numbers.family) && s.numbers.family.length) FAMILY_NUMBERS = [...s.numbers.family];
     if (Array.isArray(s.numbers.intimate) && s.numbers.intimate.length) INTIMATE_NUMBERS = [...s.numbers.intimate];
+    if (Array.isArray(s.relatives) && s.relatives.length) {
+      SIBLINGS_NUMBERS = [];
+      SIBLINGS_NAMES = {};
+      RELATIVE_INFO.clear();
+      for (const r of s.relatives) {
+        if (!r || !r.phone || r.active === false) continue;
+        const ph = String(r.phone).replace(/\D/g, "");
+        if (!ph) continue;
+        SIBLINGS_NUMBERS.push(ph);
+        if (r.name) SIBLINGS_NAMES[ph] = r.name;
+        RELATIVE_INFO.set(ph, { name: r.name || "", relation: r.relation || "", notes: r.notes || "", styleNote: r.styleNote || "" });
+      }
+    } else {
+      if (Array.isArray(s.numbers.siblings)) SIBLINGS_NUMBERS = [...s.numbers.siblings];
+      if (s.names?.siblings) SIBLINGS_NAMES = { ...s.names.siblings };
+    }
     if (Array.isArray(s.numbers.boss) && s.numbers.boss.length) BOSS_NUMBERS = [...s.numbers.boss];
     if (Array.isArray(s.numbers.trainers) && s.numbers.trainers.length) TRAINER_NUMBERS = [...s.numbers.trainers];
     if (s.names?.family) FAMILY_NAMES = { ...s.names.family };
@@ -759,7 +804,7 @@ async function start() {
   }
 
   // حلّ أرقام المحادثات المعروفة فوراً: خريطة مقابلة ثنائية الاتجاه
-  for (const n of [...FAMILY_NUMBERS, ...INTIMATE_NUMBERS, ...BOSS_NUMBERS, ...TRAINER_NUMBERS]) {
+  for (const n of [...FAMILY_NUMBERS, ...INTIMATE_NUMBERS, ...SIBLINGS_NUMBERS, ...BOSS_NUMBERS, ...TRAINER_NUMBERS]) {
     const pn = fmtPhone(n);
     lidToPn.set(pn + "@s.whatsapp.net", pn);
     lidToPn.set(pn + "@lid", pn);
@@ -842,7 +887,7 @@ async function start() {
         if (sid && !mySentIds.has(sid) && !seen.has("own_" + sid)) {
           seen.add("own_" + sid);
           const otext = extractText(m);
-          const notSpecial = !isFamily(jid, m) && !isIntimate(jid, m) && !isBoss(jid, m) && !isTrainer(jid, m);
+          const notSpecial = !isFamily(jid, m) && !isIntimate(jid, m) && !isSibling(jid, m) && !isBoss(jid, m) && !isTrainer(jid, m);
           if (otext && otext.length >= 3 && otext.length <= 500 && !isEmojiOnly(otext) && jid !== ownerJid && notSpecial) {
             captureOwnerReply(jid, m, otext).catch(() => {});
           }

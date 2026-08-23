@@ -89,9 +89,9 @@ export function cleanReply(reply) {
   return text;
 }
 
-export async function getAIResponse(userMessage, isFamily = false, isIntimate = false, isBoss = false, isTrainer = false, isOwner = false, chatId = "") {
-  const [schoolInfo, styles, learnBlock] = await Promise.all([getSchoolInfo(), getStyles(), isOwner ? Promise.resolve("") : getLearningBlock()]);
-  const system = (isOwner ? schoolInfo + styles.owner : isBoss ? schoolInfo + styles.boss : isTrainer ? schoolInfo + styles.trainer : isIntimate ? schoolInfo + styles.intimate : isFamily ? schoolInfo + styles.family : schoolInfo + (learnBlock || "")) + NO_THINKING;
+export async function getAIResponse(userMessage, isFamily = false, isIntimate = false, isBoss = false, isTrainer = false, isOwner = false, chatId = "", isSibling = false, relativeNote = "") {
+  const [schoolInfo, styles, learnBlock] = await Promise.all([getSchoolInfo(), getStyles(), isOwner || isFamily || isIntimate || isBoss || isTrainer || isSibling ? Promise.resolve("") : getLearningBlock()]);
+  const system = (isOwner ? schoolInfo + styles.owner : isBoss ? schoolInfo + styles.boss : isTrainer ? schoolInfo + styles.trainer : isIntimate ? schoolInfo + styles.intimate : isSibling ? schoolInfo + styles.sibling + (relativeNote || "") : isFamily ? schoolInfo + styles.family : schoolInfo + styles.student + (learnBlock || "")) + NO_THINKING;
   const history = (chatMemory.get(chatId) || []).slice(-MEMORY_LIMIT);
   const settings = await aiSettings();
   const models = await getModels();
@@ -149,9 +149,9 @@ export async function getAIResponse(userMessage, isFamily = false, isIntimate = 
   return gotEmpty ? CONFUSED_REPLY : ERROR_REPLY;
 }
 
-export async function getAIFactReply(fact, userMessage, isFamily = false, isIntimate = false, isBoss = false, isTrainer = false, chatId = "") {
+export async function getAIFactReply(fact, userMessage, isFamily = false, isIntimate = false, isBoss = false, isTrainer = false, chatId = "", isSibling = false) {
   const [schoolInfo, styles] = await Promise.all([getSchoolInfo(), getStyles()]);
-  const style = isBoss ? styles.boss : isTrainer ? styles.trainer : isIntimate ? styles.intimate : isFamily ? styles.family : "";
+  const style = isBoss ? styles.boss : isTrainer ? styles.trainer : isIntimate ? styles.intimate : isSibling ? styles.sibling : isFamily ? styles.family : "";
   const system = schoolInfo + style + `
 
 مهم جداً: المستخدم سأل عن معلومة من المدرسة. المعلومة الصحيحة من سجلات المدرسة هي:

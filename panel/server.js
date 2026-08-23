@@ -97,7 +97,7 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
       const b = getBotState();
       const stats = await getStats();
       const s = await getStore();
-      res.json({ ok: true, state: b, stats, control: { paused: control.paused, pausedAt: control.pausedAt }, faq: s.faq || [], categories: s.categories || [], numbers: s.numbers || {}, names: s.names || {}, ai: s.ai || {}, voice: s.voice || {}, school: s.school || {}, prices: s.prices || {}, medical: s.medical || {}, links: s.links || {}, papers: s.papers || {}, licenseFees: s.licenseFees || {}, styles: await getStyles(), learning: s.learning || { examples: [], lessons: [] }, suggestions: s.suggestions || [] });
+      res.json({ ok: true, state: b, stats, control: { paused: control.paused, pausedAt: control.pausedAt }, faq: s.faq || [], categories: s.categories || [], numbers: s.numbers || {}, names: s.names || {}, ai: s.ai || {}, voice: s.voice || {}, school: s.school || {}, prices: s.prices || {}, medical: s.medical || {}, links: s.links || {}, papers: s.papers || {}, licenseFees: s.licenseFees || {}, styles: await getStyles(), learning: s.learning || { examples: [], lessons: [] }, suggestions: s.suggestions || [], relatives: s.relatives || [] });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
@@ -143,7 +143,7 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
   app.put("/panel/api/styles", auth, async (req, res) => {
     try {
       const body = req.body || {};
-      const allow = ["family", "intimate", "boss", "trainer", "owner"];
+      const allow = ["family", "intimate", "sibling", "student", "boss", "trainer", "owner"];
       const keys = Object.keys(body);
       if (!keys.length || keys.some((k) => !allow.includes(k)) || keys.some((k) => typeof body[k] !== "string")) {
         return res.status(400).json({ ok: false, error: "styles غير صحيحة" });
@@ -180,6 +180,33 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
       if (onConfigChanged) await onConfigChanged(upd);
       const s = await getStore();
       res.json({ ok: true, school: s });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.put("/panel/api/relatives", auth, async (req, res) => {
+    try {
+      const list = req.body && Array.isArray(req.body.relatives) ? req.body.relatives : null;
+      if (!list) return res.status(400).json({ ok: false, error: "relatives مطلوب" });
+      const clean = [];
+      for (const r of list.slice(0, 100)) {
+        if (!r || typeof r !== "object") continue;
+        const phone = String(r.phone || "").replace(/\D/g, "");
+        if (!phone) continue;
+        clean.push({
+          id: String(r.id || ("rel-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5))),
+          phone,
+          name: String(r.name || "").trim().slice(0, 60),
+          relation: String(r.relation || "").trim().slice(0, 40),
+          notes: String(r.notes || "").trim().slice(0, 200),
+          styleNote: String(r.styleNote || "").trim().slice(0, 200),
+          active: r.active !== false,
+        });
+      }
+      const upd = await updateStore((s) => { s.relatives = clean; return s; });
+      if (onNumbersChanged) await onNumbersChanged();
+      res.json({ ok: true, relatives: upd.relatives || [] });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }

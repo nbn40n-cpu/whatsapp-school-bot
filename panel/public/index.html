@@ -85,6 +85,7 @@
       <button class="ghost sm" data-tab="dashboard">📊 لوحة الحالة</button>
       <button class="ghost sm" data-tab="replies">💬 الردود العامة</button>
       <button class="ghost sm" data-tab="numbers">👥 الشخصيات</button>
+      <button class="ghost sm" data-tab="relatives">👨‍👩‍👧 الأقارب</button>
       <button class="ghost sm" data-tab="settings">⚙️ الإعدادات</button>
       <button class="ghost sm" data-tab="school">🏫 المدرسة</button>
       <button class="ghost sm" data-tab="styles">🎭 أسلوب الرد</button>
@@ -165,6 +166,18 @@
       <div id="numbersEditor"></div>
     </div>
 
+    <div class="section hidden" id="secRelatives">
+      <div class="row" style="align-items:center;justify-content:space-between">
+        <h3 style="margin:0">👨‍👩‍👧 الأقارب — أشخاص العائلة</h3>
+        <span>
+          <button class="ok sm" id="btnAddRelative">+ إضافة قريب</button>
+          <button class="ghost sm" id="btnSaveRelatives">💾 حفظ الأقارب</button>
+        </span>
+      </div>
+      <p class="muted">هون بتضيف أقارب سمير (أخوه، ابن أخوه، عمه...). سوزي بتحكي معهم بأسلوب عائلي عفوي — مش سكرتيرة رسمية — وبناديلهم باسمهم وصلة قرابتهم. إذا سألوا عن المدرسة بتجاوب بالمعلومة الصحيحة طبيعياً. الرقم هو الأساس بالتعرف، فتأكد تكتبه صح (05xxxxxxxx أو 9725xxxxxxxx).</p>
+      <div id="relativesEditor"></div>
+    </div>
+
     <div class="section hidden" id="secSettings">
       <div class="row" style="align-items:center;justify-content:space-between">
         <h3 style="margin:0">⚙️ إعدادات الذكاء والصوت</h3>
@@ -241,7 +254,15 @@
         <h3 style="margin:0">🎭 أسلوب الرد لكل فئة</h3>
         <button class="ok sm" id="btnSaveStyles">💾 حفظ الأساليب</button>
       </div>
-      <p class="muted">هنا تعدّل كيف يرد البوت على كل فئة: لأفراد عائلة المدير (زوجاته)، والانتيمة، وصاحب المدرسة، والمدربين، والمدير سمير. الأسلوب نصّي يُقرأه الذكاء كتعليمات — اعمل نسخة مما فيه قبل التغيير.</p>
+      <p class="muted">هنا تعدّل كيف يرد البوت على كل فئة. الشخصية أساسية واحدة (سوزي سكرتيرة ودودة)، والفرق بين الفئات هو مستوى القرب وطريقة الكلام: طالب = ودودة طبيعية، قريب = عائلية عفوية، قريب مقرب = عفوية ومزاح خفيف، مدير/صاحب/مدرب = حسب العلاقة. الأسلوب نصّي يُقرأه الذكاء كتعليمات — اعمل نسخة مما فيه قبل التغيير.</p>
+      <div class="card" style="margin-top:12px">
+        <label>🎒 الطلاب — student</label>
+        <textarea id="stStudent" rows="6"></textarea>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <label>👨‍👩‍👧 الأقارب — sibling</label>
+        <textarea id="stSiblings" rows="6"></textarea>
+      </div>
       <div class="card" style="margin-top:12px">
         <label>👨‍👩‍👧 عائلة المدير (الزوجات) — family</label>
         <textarea id="stFamily" rows="6"></textarea>
@@ -360,6 +381,7 @@ async function refresh() {
       renderLogs(d);
       renderReplies();
       if (!numbersDirty) renderNumbers();
+      renderRelatives();
       if (!settingsDirty) renderSettings();
       if (!schoolDirty) renderSchool();
       if (!stylesDirty) renderStyles();
@@ -379,6 +401,7 @@ function showTab(tab) {
   $("secDashboard").classList.toggle("hidden", tab !== "dashboard");
   $("secReplies").classList.toggle("hidden", tab !== "replies");
   $("secNumbers").classList.toggle("hidden", tab !== "numbers");
+  $("secRelatives").classList.toggle("hidden", tab !== "relatives");
   $("secSettings").classList.toggle("hidden", tab !== "settings");
   $("secSchool").classList.toggle("hidden", tab !== "school");
   $("secStyles").classList.toggle("hidden", tab !== "styles");
@@ -758,15 +781,84 @@ $("btnSaveSchool").onclick = async () => {
   } catch (e) { toast(e.message); }
 };
 
+function relativeCard(r) {
+  const div = document.createElement("div");
+  div.className = "card";
+  div.dataset.id = r.id || "";
+  div.style.cssText = "margin-top:10px;opacity:" + (r.active === false ? ".55" : "1");
+  div.innerHTML = `
+    <div class="row" style="gap:6px">
+      <input data-rf="name" placeholder="الاسم" value="${esc(r.name)}" style="max-width:150px">
+      <input data-rf="phone" dir="ltr" placeholder="05xxxxxxxx" value="${esc(r.phone)}" style="max-width:150px">
+      <input data-rf="relation" placeholder="صلة القرابة (أخو سمير، ابن أخوه...)" value="${esc(r.relation)}" style="flex:1">
+    </div>
+    <div class="row" style="gap:6px;margin-top:6px">
+      <input data-rf="notes" placeholder="ملاحظات اختيارية (شغله، سكنه...)" value="${esc(r.notes)}" style="flex:1">
+      <input data-rf="styleNote" placeholder="أسلوب التعامل معه (اختياري، مثال: بيحب المزح)" value="${esc(r.styleNote)}" style="flex:1">
+    </div>
+    <div class="row" style="margin-top:8px;align-items:center">
+      <label style="display:flex;align-items:center;gap:5px"><input type="checkbox" data-rf="active" ${r.active === false ? "" : "checked"} style="width:auto"> مفعّل</label>
+      <span class="muted" style="flex:1"></span>
+      <button class="danger sm" data-del>🗑 حذف</button>
+    </div>`;
+  div.querySelector("[data-del]").onclick = () => div.remove();
+  return div;
+}
+function collectRelatives() {
+  const out = [];
+  document.querySelectorAll("#relativesEditor .card").forEach((card) => {
+    const get = (k) => { const el = card.querySelector(`[data-rf="${k}"]`); return el ? el.value.trim() : ""; };
+    const phone = get("phone").replace(/\D/g, "");
+    if (!phone) return;
+    out.push({
+      id: card.dataset.id || undefined,
+      phone,
+      name: get("name"),
+      relation: get("relation"),
+      notes: get("notes"),
+      styleNote: get("styleNote"),
+      active: card.querySelector('[data-rf="active"]').checked,
+    });
+  });
+  return out;
+}
+function renderRelatives() {
+  const list = (stateData && stateData.relatives) || [];
+  const ed = $("relativesEditor");
+  ed.innerHTML = "";
+  if (!list.length) {
+    const p = document.createElement("p");
+    p.className = "muted";
+    p.textContent = "ما في أقارب مضافين بعد. اضغط «+ إضافة قريب».";
+    ed.appendChild(p);
+    return;
+  }
+  for (const r of list) ed.appendChild(relativeCard(r));
+}
+$("btnAddRelative").onclick = () => {
+  const ed = $("relativesEditor");
+  const ph = ed.querySelector("p.muted");
+  if (ph) ph.remove();
+  ed.appendChild(relativeCard({ active: true }));
+};
+$("btnSaveRelatives").onclick = async () => {
+  try {
+    const saved = await api("/panel/api/relatives", { method: "PUT", body: { relatives: collectRelatives() } });
+    if (saved.ok) { toast("تم حفظ الأقارب ✅"); await refresh(); }
+  } catch (e) { toast(e.message); }
+};
+
 let stylesDirty = false;
 function renderStyles() {
   const st = (stateData && stateData.styles) || {};
   $("stFamily").value = st.family || "";
   $("stIntimate").value = st.intimate || "";
+  $("stSiblings").value = st.sibling || "";
+  $("stStudent").value = st.student || "";
   $("stBoss").value = st.boss || "";
   $("stTrainer").value = st.trainer || "";
   $("stOwner").value = st.owner || "";
-  ["stFamily", "stIntimate", "stBoss", "stTrainer", "stOwner"].forEach((id) => {
+  ["stFamily", "stIntimate", "stSiblings", "stStudent", "stBoss", "stTrainer", "stOwner"].forEach((id) => {
     $(id).addEventListener("input", markStyles);
   });
 }
@@ -846,6 +938,8 @@ $("btnSaveStyles").onclick = async () => {
   const body = {
     family: $("stFamily").value,
     intimate: $("stIntimate").value,
+    sibling: $("stSiblings").value,
+    student: $("stStudent").value,
     boss: $("stBoss").value,
     trainer: $("stTrainer").value,
     owner: $("stOwner").value,
