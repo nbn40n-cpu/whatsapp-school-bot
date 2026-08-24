@@ -108,6 +108,14 @@
         <button class="ghost" data-act="restart">🔄 إعادة تشغيل</button>
         <button class="ghost" data-act="relink" title="يلغي جلسة الارتباط ويعيد الربط">📱 إعادة ربط واتساب</button>
       </div>
+      <div class="card" id="pairingCard" style="margin-top:12px;display:none;background:var(--acc);color:#06283d">
+        <div class="k" style="color:#06283d">🔑 كود الاقتران — أدخله بالواتساب</div>
+        <div class="v" id="pairingCode" style="font-size:1.4em;letter-spacing:4px;direction:ltr;text-align:center;margin:8px 0">—</div>
+        <div class="muted" style="color:#06283d;font-size:0.85em">
+          واتساب → الإعدادات → الأجهزة المرتبطة → ربط جهاز → ⋮ → الربط برقم الهاتف<br>
+          الرقم: <b>972568444407</b> — ثم أدخل الكود أعلاه
+        </div>
+      </div>
       <div class="card" style="margin-top:12px">
         <div class="k">آخر نشاط</div><div class="v small" id="cLastActivity">—</div>
         <div class="k" style="margin-top:10px">آخر خطأ</div><div class="v small" id="cLastError" style="color:var(--bad)">—</div>
@@ -356,6 +364,14 @@ function renderDashboard(d) {
   $("cLastActivity").textContent = st.lastActivity ? new Date(st.lastActivity).toLocaleString("ar-JO") : "—";
   $("cLastError").textContent = (st.lastError || "لا توجد أخطاء") + (st.lastErrorAt ? " • " + new Date(st.lastErrorAt).toLocaleString("ar-JO") : "");
   $("cLastStart").textContent = st.lastStart ? new Date(st.lastStart).toLocaleString("ar-JO") : "—";
+  const pc = s.pairingCode || "";
+  const card = $("pairingCard");
+  if (pc && s.needsLink) {
+    $("pairingCode").textContent = pc;
+    card.style.display = "";
+  } else {
+    card.style.display = "none";
+  }
 }
 
 function renderLogs(d) {
