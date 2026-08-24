@@ -438,9 +438,13 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
   const publicDir = path.join(__dirname, "public");
   app.use("/panel", express.static(publicDir, { index: "index.html" }));
 
-  app.get("/panel/qr.png", auth, (req, res) => {
+  app.get("/panel/qr.png", (req, res) => {
+    const tok = req.query.token || "";
+    if (!tok) return res.status(401).json({ error: "unauthorized" });
+    const d = verifyToken(tok, secret);
+    if (!d || d.role !== "admin") return res.status(401).json({ error: "unauthorized" });
     const qrPath = path.join(process.cwd(), "qr.png");
-    if (fs.existsSync(qrPath)) { res.sendFile(qrPath); } else { res.status(404).json({ error: "QR غير متاح حالياً" }); }
+    if (fs.existsSync(qrPath)) { res.sendFile(qrPath); } else { res.status(404).json({ error: "QR غير متاح" }); }
   });
 
   app.get("/panel", (req, res) => res.sendFile(path.join(publicDir, "index.html")));

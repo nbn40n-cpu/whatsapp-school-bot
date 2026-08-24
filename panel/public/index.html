@@ -376,7 +376,7 @@ function renderDashboard(d) {
   if ((pc || s.needsLink) && s.whatsapp !== "connected") {
     if (pc) { $("pairingCode").textContent = pc; card.style.display = ""; } else { card.style.display = "none"; }
     qrC.style.display = "";
-    $("qrImg").src = "/panel/qr.png?" + Date.now();
+    $("qrImg").src = "/panel/qr.png?t=" + Date.now() + "&token=" + TOKEN;
   } else {
     card.style.display = "none";
     qrC.style.display = "none";
