@@ -734,6 +734,7 @@ async function start() {
         state: status.state,
         user: status.user || "",
         paused: getControl().paused,
+        pairingCode: status.code || "",
         uptimeSeconds: Math.round((Date.now() - (status.startedAt || Date.now())) / 1000),
       }),
       onConfigChanged: async () => {
