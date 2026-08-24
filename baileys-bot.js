@@ -760,6 +760,7 @@ async function start() {
       if (action === "relink") {
         status.state = "relinking";
         console.log("🔁 طلب إعادة ربط واتساب من لوحة التحكم");
+        try { fs.rmSync(authPath, { recursive: true, force: true }); console.log("🗑️ تم حذف جلسة واتساب القديمة"); } catch (_) {}
         setTimeout(() => process.exit(0), 300);
         return { relinking: true };
       }
