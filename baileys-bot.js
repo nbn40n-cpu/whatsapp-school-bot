@@ -94,7 +94,7 @@ const LICENSE_TYPES = ["خصوصي", "شحن خفيف", "شحن ثقيل", "با
 const LESSON_PRICE = { "خصوصي": 105, "شحن خفيف": 125, "شحن ثقيل": 180, "باص": 180, "تراكتور": 105 };
 const TEST_PRICE = { "خصوصي": 320, "شحن خفيف": 380, "شحن ثقيل": 520, "باص": 520, "تراكتور": 320 };
 const ERROR_REPLY_COOLDOWN = 30 * 60 * 1000;
-const authPath = path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH || ".", "baileys_auth");
+const authPath = path.join(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || ".", "baileys_auth");
 
 let status = { state: "starting", code: null, user: null, startedAt: Date.now() };
 

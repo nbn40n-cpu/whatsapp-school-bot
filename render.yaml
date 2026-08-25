@@ -1,14 +1,17 @@
 services:
   - type: web
     name: whatsapp-school-bot
-    env: docker
-    dockerfilePath: Dockerfile
+    env: node
+    buildCommand: npm install
+    startCommand: node baileys-bot.js
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
     envVars:
       - key: GROQ_API_KEY
         sync: false
       - key: SCHOOL_PHONE
         value: "0568444407"
-      - key: PANEL_PASSWORD
-        sync: false
-      - key: NODE_ENV
-        value: "production"
+      - key: DATA_DIR
+        value: "/data"
