@@ -450,9 +450,14 @@ export async function startPanel({ getBotState, onControl, onConfigChanged, onNu
   app.get("/panel", (req, res) => res.sendFile(path.join(publicDir, "index.html")));
   app.get("/panel/", (req, res) => res.redirect("/panel"));
 
-  app.get(["/", "/status"], (req, res) => {
+  app.get(["/", "/status", "/health"], (req, res) => {
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify(getBotState()));
+  });
+
+  app.get("/ping", (req, res) => {
+    res.setHeader("content-type", "text/plain");
+    res.end("pong");
   });
 
   return new Promise((resolve) => {

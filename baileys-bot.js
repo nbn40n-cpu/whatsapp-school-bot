@@ -97,6 +97,9 @@ const ERROR_REPLY_COOLDOWN = 30 * 60 * 1000;
 const authPath = path.join(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || ".", "baileys_auth");
 
 let status = { state: "starting", code: null, user: null, startedAt: Date.now() };
+let reconnectAttempts = 0;
+let consecutiveLoggedOut = 0;
+const MAX_RECONNECT_DELAY = 5 * 60 * 1000;
 
 function isPersonal(from) { return from && !from.endsWith("@g.us") && from !== "status@broadcast"; }
 function isGreeting(text) { return GREETING_PATTERN.test(text.trim()); }
@@ -771,6 +774,14 @@ async function start() {
 
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
   let pairingCodeRequested = false;
+  
+  const authExists = fs.existsSync(authPath);
+  console.log(`📁 Auth path: ${authPath} | موجود: ${authExists ? "نعم ✅" : "لا ❌ (يحتاج ربط)"}`);
+  
+  if (!authExists) {
+    status.state = "relinking";
+    console.log("🔗 لا يوجد جلسة — يحتاج كود اقتران جديد");
+  }
 
   const { version } = await fetchLatestBaileysVersion();
 
@@ -857,22 +868,63 @@ async function start() {
       const reason = lastDisconnect?.error?.output?.statusCode;
       status.state = "closed";
       setLastError(`قطع اتصال واتساب (${reason})`);
+      reconnectAttempts++;
+      
       if (reason === DisconnectReason.loggedOut) {
-        try { fs.rmSync(authPath, { recursive: true, force: true }); } catch (_) {}
-        console.log("\n🔁 واتساب أزال الجلسة، حذف الكسس وطلب كود اقتران جديد خلال 12 ثانية");
-      } else if (reason === DisconnectReason.connectionReplaced) {
-        console.log("\n🔁 الجلسة استُبدلت بجهاز آخر — مع الحفاظ على بيانات الجلسة.");
+        consecutiveLoggedOut++;
+      } else {
+        consecutiveLoggedOut = 0;
       }
-      console.log(`\n🔄 قطع (${reason})، إعادة خلال 12 ثواني`);
-      setTimeout(start, 12000);
+      
+      const reasonNames = {
+        [DisconnectReason.loggedOut]: "loggedOut(401) - واتساب أزال الجلسة",
+        [DisconnectReason.connectionReplaced]: "connectionReplaced(440) - جهاز آخر استبدل الجلسة",
+        [DisconnectReason.connectionClosed]: "connectionClosed(428) - الاتصال أُغلق",
+        [DisconnectReason.connectionLost]: "connectionLost(408) - الاتصال ضاع",
+        [DisconnectReason.timedOut]: "timedOut(408) - انتهت المهلة",
+        [DisconnectReason.restartRequired]: "restartRequired(515) - واتساب طلب إعادة تشغيل",
+        [DisconnectReason.badSession]: "badSession(500) - جلسة فاسدة",
+      };
+      
+      const reasonName = reasonNames[reason] || `reason=${reason}`;
+      console.log(`\n⚠️ قطع اتصال واتساب: ${reasonName}`);
+      console.log(`📊 محاولة إعادة الاتصال #${reconnectAttempts} | loggedOut متتالي: ${consecutiveLoggedOut}`);
+      
+      if (reason === DisconnectReason.loggedOut) {
+        if (consecutiveLoggedOut >= 3) {
+          console.log("🔴 loggedOut تكرر 3 مرات — حذف Auth وطلب كود اقتران جديد");
+          try { fs.rmSync(authPath, { recursive: true, force: true }); } catch (_) {}
+          status.state = "relinking";
+          consecutiveLoggedOut = 0;
+          reconnectAttempts = 0;
+        } else {
+          console.log("⚠️ واتساب أزال الجلسة — يُحتفظ بالملفات ويجرب مرة ثانية");
+          console.log(`💡 إذا تكرر ${3 - consecutiveLoggedOut} مرات ثانية، يحتاج كود اقتران جديد`);
+        }
+      } else if (reason === DisconnectReason.connectionReplaced) {
+        console.log("🔁 الجلسة استُبدلت بجهاز آخر — يُحتفظ بالملفات.");
+      }
+      
+      let delay = Math.min(5000 * Math.pow(2, reconnectAttempts - 1), MAX_RECONNECT_DELAY);
+      delay += Math.random() * 2000;
+      
+      if (reconnectAttempts > 5) {
+        delay = Math.min(delay, 30000);
+        console.log(`⚠️ كثرة الفصل — تأخير ${Math.round(delay/1000)} ثانية`);
+      }
+      
+      console.log(`🔄 إعادة الاتصال خلال ${Math.round(delay/1000)} ثانية...`);
+      setTimeout(start, delay);
     }
 
     if (connection === "open") {
       pairingCodeRequested = false;
+      reconnectAttempts = 0;
       status.state = "connected";
       status.user = sock.user?.id || "";
       console.log(`\n✅ ${SCHOOL_NAME} - المساعد متصل!`);
       console.log(`👤 ${sock.user?.id || ""}`);
+      console.log(`⏱️ uptime: ${Math.round((Date.now() - status.startedAt) / 1000)}s`);
     }
   });
 

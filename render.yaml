@@ -4,6 +4,7 @@ services:
     env: node
     buildCommand: npm install
     startCommand: node baileys-bot.js
+    healthCheckPath: /health
     disk:
       name: data
       mountPath: /data
@@ -15,3 +16,5 @@ services:
         value: "0568444407"
       - key: DATA_DIR
         value: "/data"
+      - key: PANEL_PASSWORD
+        sync: false
