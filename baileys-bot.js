@@ -127,8 +127,7 @@ const STUDENT_NAMES = {};
 const greeted = new Set();
 const seen = new Set();
 const mediaNotified = new Set();
-const ownerActive = new Map();
-const OWNER_PAUSE_MS = 10 * 60 * 1000;
+const chatPaused = new Map();
 const mySentIds = new Set();
 const lastErrorReply = new Map();
 const lidToPn = new Map();
@@ -998,11 +997,52 @@ async function start() {
       if (!isPersonal(jid)) continue;
 
       if (m.key?.fromMe) {
-        ownerActive.set(jid, Date.now());
         const sid = m.key?.id || "";
         if (sid && !mySentIds.has(sid) && !seen.has("own_" + sid)) {
           seen.add("own_" + sid);
           const otext = extractText(m);
+          
+          if (jid === ownerJid && otext) {
+            const cmd = otext.trim();
+            const cmdLower = cmd.toLowerCase();
+            
+            if (/^(وقفي|استني|وقف| pau|stop)$/i.test(cmdLower)) {
+              chatPaused.set(jid, true);
+              await sendMsg(sock, ownerJid, "⏸️ تم إيقاف الرد في هالمحادثة. اكتب 'كملي' لاستئناف.");
+              continue;
+            }
+            if (/^(كملي|شغّل| resumes|resume|start)$/i.test(cmdLower)) {
+              chatPaused.delete(jid);
+              await sendMsg(sock, ownerJid, "▶️ البوت شغال الحين في هالمحادثة.");
+              continue;
+            }
+            if (/^(شوفي|rs|الرسائل|messages|recent)$/i.test(cmdLower)) {
+              const entries = [...lastStudentQ.entries()].slice(-10);
+              if (!entries.length) { await sendMsg(sock, ownerJid, "ما في رسائل حديثة."); continue; }
+              let list = "📋 آخر 10 محادثات:\n";
+              for (const [jid2, lastObj] of entries) {
+                const mins = Math.round((Date.now() - lastObj.ts) / 60000);
+                list += `\n• ${jid2.split("@")[0]} — آخر رسالة ${mins} دقيقة`
+                  + (lastObj.q ? `: "${lastObj.q.slice(0, 40)}..."` : "");
+              }
+              await sendMsg(sock, ownerJid, list);
+              continue;
+            }
+            const sendMatch = cmd.match(/^(?:ارسلي|ابعثي|rs)\s+(\d+)\s+(.+)/i);
+            if (sendMatch) {
+              const num = "972" + sendMatch[1].replace(/^0/, "");
+              const msg = sendMatch[2];
+              const target = num + "@s.whatsapp.net";
+              try {
+                await sock.sendMessage(target, { text: msg });
+                await sendMsg(sock, ownerJid, `✅ تم إرسال الرسالة لـ ${sendMatch[1]}`);
+              } catch (e) {
+                await sendMsg(sock, ownerJid, `❌ فشل الإرسال: ${e.message}`);
+              }
+              continue;
+            }
+          }
+          
           const notSpecial = !isFamily(jid, m) && !isIntimate(jid, m) && !isSibling(jid, m) && !isBoss(jid, m) && !isTrainer(jid, m);
           if (otext && otext.length >= 3 && otext.length <= 500 && !isEmojiOnly(otext) && jid !== ownerJid && notSpecial) {
             captureOwnerReply(jid, m, otext).catch(() => {});
@@ -1011,9 +1051,7 @@ async function start() {
         continue;
       }
 
-      const lastOwner = ownerActive.get(jid) || 0;
-      if (Date.now() - lastOwner < OWNER_PAUSE_MS) {
-        console.log(`🔕 صمت - المالك عم يرد في ${jid} خلال 10 دقايق، تأجيل الرد`);
+      if (chatPaused.get(jid)) {
         continue;
       }
 
