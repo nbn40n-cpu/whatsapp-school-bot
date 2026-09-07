@@ -1001,51 +1001,56 @@ async function start() {
         if (sid && !mySentIds.has(sid) && !seen.has("own_" + sid)) {
           seen.add("own_" + sid);
           const otext = extractText(m);
-          
-          if (jid === ownerJid && otext) {
+
+          if (otext) {
             const cmd = otext.trim();
             const cmdLower = cmd.toLowerCase();
-            
-            if (/^(وقفي|استني|وقف| pau|stop)$/i.test(cmdLower)) {
+
+            if (/^(وقفي|استني|وقف|pau|stop|اسكتي|اسكت)$/i.test(cmdLower)) {
               chatPaused.set(jid, true);
-              await sendMsg(sock, ownerJid, "⏸️ تم إيقاف الرد في هالمحادثة. اكتب 'كملي' لاستئناف.");
+              await sendMsg(sock, jid, "⏸️ ماشي، ساكتة بهالمحادثة. اكتب 'كملي' لاستئناف.");
               continue;
             }
-            if (/^(كملي|شغّل| resumes|resume|start)$/i.test(cmdLower)) {
+            if (/^(كملي|شغّل|resumes|resume|start|احكي|حكي)$/i.test(cmdLower)) {
               chatPaused.delete(jid);
-              await sendMsg(sock, ownerJid, "▶️ البوت شغال الحين في هالمحادثة.");
+              await sendMsg(sock, jid, "▶️ تمام، رجعت أشتغل بهالمحادثة.");
               continue;
             }
-            if (/^(شوفي|rs|الرسائل|messages|recent)$/i.test(cmdLower)) {
-              const entries = [...lastStudentQ.entries()].slice(-10);
-              if (!entries.length) { await sendMsg(sock, ownerJid, "ما في رسائل حديثة."); continue; }
-              let list = "📋 آخر 10 محادثات:\n";
-              for (const [jid2, lastObj] of entries) {
-                const mins = Math.round((Date.now() - lastObj.ts) / 60000);
-                list += `\n• ${jid2.split("@")[0]} — آخر رسالة ${mins} دقيقة`
-                  + (lastObj.q ? `: "${lastObj.q.slice(0, 40)}..."` : "");
+            if (jid === ownerJid) {
+              if (/^(شوفي|rs|الرسائل|messages|recent)$/i.test(cmdLower)) {
+                const entries = [...lastStudentQ.entries()].slice(-10);
+                if (!entries.length) { await sendMsg(sock, ownerJid, "ما في رسائل حديثة."); continue; }
+                let list = "📋 آخر 10 محادثات:\n";
+                for (const [jid2, lastObj] of entries) {
+                  const mins = Math.round((Date.now() - lastObj.ts) / 60000);
+                  list += `\n• ${jid2.split("@")[0]} — آخر رسالة ${mins} دقيقة`
+                    + (lastObj.q ? `: "${lastObj.q.slice(0, 40)}..."` : "");
+                }
+                await sendMsg(sock, ownerJid, list);
+                continue;
               }
-              await sendMsg(sock, ownerJid, list);
-              continue;
+              const sendMatch = cmd.match(/^(?:ارسلي|ابعثي|rs)\s+(\d+)\s+(.+)/i);
+              if (sendMatch) {
+                const num = "972" + sendMatch[1].replace(/^0/, "");
+                const msg = sendMatch[2];
+                const target = num + "@s.whatsapp.net";
+                try {
+                  await sock.sendMessage(target, { text: msg });
+                  await sendMsg(sock, ownerJid, `✅ تم إرسال الرسالة لـ ${sendMatch[1]}`);
+                } catch (e) {
+                  await sendMsg(sock, ownerJid, `❌ فشل الإرسال: ${e.message}`);
+                }
+                continue;
+              }
             }
-            const sendMatch = cmd.match(/^(?:ارسلي|ابعثي|rs)\s+(\d+)\s+(.+)/i);
-            if (sendMatch) {
-              const num = "972" + sendMatch[1].replace(/^0/, "");
-              const msg = sendMatch[2];
-              const target = num + "@s.whatsapp.net";
+
+            if (jid !== ownerJid && !chatPaused.get(jid)) {
               try {
-                await sock.sendMessage(target, { text: msg });
-                await sendMsg(sock, ownerJid, `✅ تم إرسال الرسالة لـ ${sendMatch[1]}`);
+                await handleMsg(sock, m, jid);
               } catch (e) {
-                await sendMsg(sock, ownerJid, `❌ فشل الإرسال: ${e.message}`);
+                console.error("❌ معالجة رسالة المالك فشلت:", e.message);
               }
-              continue;
             }
-          }
-          
-          const notSpecial = !isFamily(jid, m) && !isIntimate(jid, m) && !isSibling(jid, m) && !isBoss(jid, m) && !isTrainer(jid, m);
-          if (otext && otext.length >= 3 && otext.length <= 500 && !isEmojiOnly(otext) && jid !== ownerJid && notSpecial) {
-            captureOwnerReply(jid, m, otext).catch(() => {});
           }
         }
         continue;
