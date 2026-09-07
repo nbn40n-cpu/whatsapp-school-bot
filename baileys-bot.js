@@ -344,6 +344,11 @@ function sanitizeReply(text) {
 
 async function sendMsg(sock, to, text) {
   const clean = sanitizeReply(text);
+  const lastReply = lastBotReply.get(to);
+  if (lastReply && lastReply.a === clean && Date.now() - lastReply.ts < 120000) {
+    console.log(`🔕 تخطي رد مكرر لـ ${to}`);
+    return;
+  }
   console.log(`📤 ${to}: ${clean.slice(0, 80)}`);
   pushEvent({ dir: "out", from: to, text: clean, kind: "text" }).then(v => v);
   for (let i = 0; i < 3; i++) {

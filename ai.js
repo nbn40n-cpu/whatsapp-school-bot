@@ -14,8 +14,8 @@ async function aiSettings() {
   return {
     primary: s.ai?.primaryModel || "groq/compound",
     fallbacks: Array.isArray(s.ai?.fallbackModels) && s.ai.fallbackModels.length ? s.ai.fallbackModels : ["qwen/qwen3.6-27b", "groq/compound-mini"],
-    temperature: typeof s.ai?.temperature === "number" ? s.ai.temperature : 0.7,
-    maxTokens: typeof s.ai?.maxTokens === "number" ? s.ai.maxTokens : 200,
+    temperature: typeof s.ai?.temperature === "number" ? s.ai.temperature : 0.5,
+    maxTokens: typeof s.ai?.maxTokens === "number" ? s.ai.maxTokens : 300,
     factTemperature: 0.4,
     factMaxTokens: 250,
     voice: s.voice?.voice || "ar-JO-SanaNeural",
@@ -48,15 +48,18 @@ async function runEdgeTTS(args) {
 
 export const ERROR_REPLY = "هلا، فيه مشكلة مؤقتة، جرب تراسل تاني بعد شوي أو اكتب مدير سمير.";
 const chatMemory = new Map();
-const MEMORY_LIMIT = 4;
+const MEMORY_LIMIT = 6;
 const CONFUSED_REPLY = "هههه آسفة، ما فهمتك، عيدها بكلمات ثانية؟";
 
 const NO_THINKING = `
 
 مهم جداً: أجبي فقط بالنص النهائي لردك على واتساب بالعامية الأردنية، جملة أو جملتين. لا تكتبي أي قسم thinking أو تحليل أو أفكار داخلية أو تعليمات أو تكرار لكلام المستخدم، ولا تبدئي بكلمة User أو المستخدم أو Context.
+- فكري قبل ما تردي: اقرئي الرسالة仔细 وافهمي المطلوب قبل ما تكتبي.
 - جاوب بس عاللي سأل عنه، قصير مباشر بدون مقدمات ولا أسئلة مرتدة.
 - ممنوع تعيد كلام الطالب أو تناديه بلقب حكى عنه؛ حيّي عام أو باسمه إذا معروف.
 - إذا قال ماشي/تمام/ان شاء الله/مع السلامة: ودّع وخلاص بدون ترجيع.
+- لا تكرري نفس الرسالة أو نفس الفكرة في ردود متتالية: إذا قلت شي مرة لا تعيديه.
+- إذا كان السؤال غامض أو قصير جداً، اسألي للوضوح بدل ما تخمّني.
 
 `;
 
