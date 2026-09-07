@@ -884,44 +884,46 @@ async function start() {
   }
 
   sock.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
-    if (qr && !state.creds.registered && !pairingCodeRequested) {
-      pairingCodeRequested = true;
+    if (qr && !state.creds.registered) {
       const qrPath = path.join(process.cwd(), "qr.png");
       try {
         await QR.toFile(qrPath, qr, { width: 400, margin: 2 });
-        console.log(`\n📱 QR محفوظ في: ${qrPath}`);
+        console.log(`\n📱 QR محدث في: ${qrPath}`);
       } catch (_) {}
-      const phoneNumber = fmtPhone(PHONE);
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          process.stdout.write(`\n⏳ طلب كود الاقتران (محاولة ${attempt + 1})...\r`);
-          await new Promise(r => setTimeout(r, 4000));
-          let code = await sock.requestPairingCode(phoneNumber);
-          if (code) {
-            code = code.match(/.{1,4}/g)?.join("-") || code;
-            status.code = code;
-            console.log("\n" + "═".repeat(42));
-            console.log("  🔑 كود الاقتران:");
-            console.log(`\n       ${code}\n`);
-            console.log("  من تلفون آخر (أو كمبيوتر):");
-            console.log("  1. افتح web.whatsapp.com");
-            console.log("  2. اختر 'الربط برقم الهاتف'");
-            console.log("  3. أدخل: 972568444407 ثم الكود: " + code);
-            console.log("\n  أو من نفس التلفون:");
-            console.log("  1. واتساب > الإعدادات > الأجهزة المرتبطة");
-            console.log("  2. ربط جهاز > ⋮ > الربط برقم الهاتف");
-            console.log("  3. أدخل الكود: " + code);
-            console.log("═".repeat(42) + "\n");
-            break;
+      if (!pairingCodeRequested) {
+        pairingCodeRequested = true;
+        const phoneNumber = fmtPhone(PHONE);
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            process.stdout.write(`\n⏳ طلب كود الاقتران (محاولة ${attempt + 1})...\r`);
+            await new Promise(r => setTimeout(r, 4000));
+            let code = await sock.requestPairingCode(phoneNumber);
+            if (code) {
+              code = code.match(/.{1,4}/g)?.join("-") || code;
+              status.code = code;
+              console.log("\n" + "═".repeat(42));
+              console.log("  🔑 كود الاقتران:");
+              console.log(`\n       ${code}\n`);
+              console.log("  من تلفون آخر (أو كمبيوتر):");
+              console.log("  1. افتح web.whatsapp.com");
+              console.log("  2. اختر 'الربط برقم الهاتف'");
+              console.log("  3. أدخل: 972568444407 ثم الكود: " + code);
+              console.log("\n  أو من نفس التلفون:");
+              console.log("  1. واتساب > الإعدادات > الأجهزة المرتبطة");
+              console.log("  2. ربط جهاز > ⋮ > الربط برقم الهاتف");
+              console.log("  3. أدخل الكود: " + code);
+              console.log("═".repeat(42) + "\n");
+              break;
+            }
+          } catch (e) {
+            console.log(`❌ ${e.message}`);
           }
-        } catch (e) {
-          console.log(`❌ ${e.message}`);
         }
+        console.log("\n📸 أو استخدم QR:");
+        console.log("1. افتح صور → Download → whatsapp_qr.png");
+        console.log("2. افتح واتساب > الأجهزة المرتبطة > ربط جهاز");
+        console.log("3. امسح الصورة من معرض الصور\n");
       }
-      console.log("\n📸 أو استخدم QR:");
-      console.log("1. افتح صور → Download → whatsapp_qr.png");
-      console.log("2. افتح واتساب > الأجهزة المرتبطة > ربط جهاز");
-      console.log("3. امسح الصورة من معرض الصور\n");
     }
 
     if (connection === "close") {
