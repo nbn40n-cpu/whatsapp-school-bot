@@ -939,7 +939,7 @@ async function start() {
       
       if (reason === DisconnectReason.loggedOut) {
         consecutiveLoggedOut++;
-      } else {
+      } else if (reason !== DisconnectReason.connectionReplaced) {
         consecutiveLoggedOut = 0;
       }
       
@@ -958,22 +958,35 @@ async function start() {
       console.log(`📊 محاولة إعادة الاتصال #${reconnectAttempts} | loggedOut متتالي: ${consecutiveLoggedOut}`);
       
       if (reason === DisconnectReason.loggedOut) {
-        if (consecutiveLoggedOut >= 3) {
-          console.log("🔴 loggedOut تكرر 3 مرات — حذف Auth وطلب كود اقتران جديد");
+        if (consecutiveLoggedOut >= 2) {
+          console.log("🔴 loggedOut تكرر مرتين — حذف Auth وطلب كود اقتران جديد");
           try { fs.rmSync(authPath, { recursive: true, force: true }); } catch (_) {}
           status.state = "relinking";
           consecutiveLoggedOut = 0;
           reconnectAttempts = 0;
         } else {
           console.log("⚠️ واتساب أزال الجلسة — يُحتفظ بالملفات ويجرب مرة ثانية");
-          console.log(`💡 إذا تكرر ${3 - consecutiveLoggedOut} مرات ثانية، يحتاج كود اقتران جديد`);
+          console.log(`💡 إذا تكرر مرة ثانية، يحتاج كود اقتران جديد`);
         }
       } else if (reason === DisconnectReason.connectionReplaced) {
         console.log("🔁 الجلسة استُبدلت بجهاز آخر — يُحتفظ بالملفات.");
+        consecutiveLoggedOut = 0;
+      } else if (reason === DisconnectReason.badSession) {
+        console.log("🔴 جلسة فاسدة — حذف Auth وطلب كود اقتران جديد");
+        try { fs.rmSync(authPath, { recursive: true, force: true }); } catch (_) {}
+        status.state = "relinking";
+        reconnectAttempts = 0;
       }
       
-      let delay = Math.min(5000 * Math.pow(2, reconnectAttempts - 1), MAX_RECONNECT_DELAY);
-      delay += Math.random() * 2000;
+      let delay;
+      if (reason === DisconnectReason.connectionReplaced) {
+        delay = 10000;
+      } else if (reason === DisconnectReason.badSession || reason === DisconnectReason.loggedOut) {
+        delay = 5000;
+      } else {
+        delay = Math.min(5000 * Math.pow(2, reconnectAttempts - 1), MAX_RECONNECT_DELAY);
+        delay += Math.random() * 2000;
+      }
       
       if (reconnectAttempts > 5) {
         delay = Math.min(delay, 30000);
