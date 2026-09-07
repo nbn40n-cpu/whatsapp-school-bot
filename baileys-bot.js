@@ -852,7 +852,17 @@ async function start() {
     markOnlineOnConnect: false,
     generateHighQualityLinkPreview: false,
     browser: Browsers.appropriate("Chrome"),
+    keepAliveIntervalMs: 30000,
+    connectTimeoutMs: 60000,
+    qrcodeTimeoutMs: 60000,
+    resumeConnectionTimeoutMs: 60000,
   });
+
+  const keepAliveInterval = setInterval(() => {
+    if (sock.ws.readyState === 1) {
+      sock.ws.ping();
+    }
+  }, 25000);
 
   sock.ev.on("creds.update", saveCreds);
 
@@ -926,6 +936,7 @@ async function start() {
     }
 
     if (connection === "close") {
+      clearInterval(keepAliveInterval);
       const reason = lastDisconnect?.error?.output?.statusCode;
       status.state = "closed";
       setLastError(`قطع اتصال واتساب (${reason})`);
