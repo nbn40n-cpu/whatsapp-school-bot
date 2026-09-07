@@ -14,8 +14,33 @@ const PHONE = process.env.SCHOOL_PHONE || "0568444407";
 let FAMILY_NUMBERS = ["0568828240", "0569268867"];
 let FAMILY_NAMES = { "0568828240": "نهال أم محمد", "0569268867": "هدى أم آدم" };
 let INTIMATE_NUMBERS = ["0598742654"];
-let SIBLINGS_NUMBERS = [];
-let SIBLINGS_NAMES = {};
+let SIBLINGS_NUMBERS = ["0569796559", "0568828236", "0568828231", "0569410741", "0569058964", "972569422859", "972568120567", "972568484343", "0568868116", "972568181356", "972568175303"];
+let SIBLINGS_NAMES = {
+  "0569796559": "سليمان أبو قبيطة",
+  "0568828236": "ربحي أبو قبيطة",
+  "0568828231": "rajih أبو قبيطة",
+  "0569410741": "حسين أبو قبيطة",
+  "0569058964": "حمزي أبو قبيطة",
+  "972569422859": "سميح ربحي أبو قبيطة",
+  "972568120567": "سميح سليمان أبو قبيطة",
+  "972568484343": "عبيدة ربحي أبو قبيطة",
+  "0568868116": "حسين ربحي أبو قبيطة",
+  "972568181356": "حسين بديع أبو قبيطة",
+  "972568175303": "يحيى بديع أبو قبيطة"
+};
+const SIBLINGS_EPITHETS = {
+  "0569796559": "أبو عمار",
+  "0568828236": "أبو عبيدة",
+  "0568828231": "أبو محمد",
+  "0569410741": "أبو الأمير",
+  "0569058964": "أبو راجح",
+  "972569422859": "",
+  "972568120567": "أبو قيس",
+  "972568484343": "أبو ربحي",
+  "0568868116": "أبو عمرو",
+  "972568181356": "أبو بديع",
+  "972568175303": "أبو سمير"
+};
 const RELATIVE_INFO = new Map();
 let BOSS_NUMBERS = ["0568444405"];
 let TRAINER_NUMBERS = ["0562400502", "0568030693", "0568331002", "0562400562", "0568828238", "0562400404"];
@@ -56,7 +81,13 @@ const INTIMATE_OWNER_REPLY = "إذا في أمر ضروري اتصلي مباش�
 const INTIMATE_FAREWELLS = ["مع السلامة، يومك سعيد، انبسطت بالحديث معك يا صديقتي، ديري بالك على حالك.", "مع ألف سلامة حبيبتي، إلهي يومك سعيد، كل ما بدك إياه إحنا موجودين، ديري بالك."];
 const FAMILY_FAREWELLS = ["مع السلامة حبيبتي، الله يسعدك 🌷", "مع السلامة نورتينا، ديري بالك على حالك."];
 const SIBLINGS_GREETING_VARIANTS = ["هلا والله يا غالي 🌹", "أهلاً بأخ سمير، نورت 🌹", "هلا بالغالي، شو أخبارك؟"];
-const SIBLINGS_FAREWELLS = ["مع السلامة يا غالي، الله يسعدك 🌹", "مع ألف سلامة يا غالي، نورت.", "يسلمو يا غالي، الله يحفظك."];
+const SIBLINGS_FAREWELLS = [
+  "مع السلامة يا غالي، الله يسعدك 🌹",
+  "مع ألف سلامة يا غالي، نورت.",
+  "يسلمو يا غالي، الله يحفظك.",
+  "في أمان الله {epithet}، الله يحفظك.",
+  "مع السلامة {name}، الله يسعدك ويبارك فيك."
+];
 const FAREWELLS = ["العفو، أهلين وسهلين فيك. إذا احتجت أي استفسار ثاني إحنا موجودين.", "على الرحب والسعة، بالتوفيق لك."];
 const GOODBYES = ["مع السلامة، بالتوفيق لك. بننتظرك في أي وقت.", "في أمان الله، بالتوفيق، أهلين وسهلين فيك في أي وقت."];
 const OWNER_WHERE_PATTERN = /(وين سمير|اين سمير|وين الاستاذ|سمير مشغول|وين المدير|توفر سمير|بدي احكي مع سمير|وين المدرب|وين شمير|بدي احكي مع شمير)/i;
@@ -150,6 +181,7 @@ function isFamily(from, msg) { const pn = pnOf(from, msg); return FAMILY_NUMBERS
 function isIntimate(from, msg) { const pn = pnOf(from, msg); return INTIMATE_NUMBERS.some(n => matchesPn(pn, n)); }
 function isSibling(from, msg) { const pn = pnOf(from, msg); return SIBLINGS_NUMBERS.some(n => matchesPn(pn, n)); }
 function siblingName(from, msg) { const pn = pnOf(from, msg); const n = SIBLINGS_NUMBERS.find(n => matchesPn(pn, n)); return SIBLINGS_NAMES[n] || ""; }
+function siblingEpithet(from, msg) { const pn = pnOf(from, msg); const n = SIBLINGS_NUMBERS.find(n => matchesPn(pn, n)); return SIBLINGS_EPITHETS[n] || ""; }
 function relativeNote(from, msg) {
   const pn = pnOf(from, msg);
   const key = SIBLINGS_NUMBERS.find(n => matchesPn(pn, n));
@@ -447,7 +479,9 @@ async function routeText(sock, msg, jid, text, asVoice = false) {
     else if (trainer) g = TRAINER_GREETING_VARIANTS[Math.floor(Math.random() * TRAINER_GREETING_VARIANTS.length)].replace(/{name}/g, trainerName(jid, msg)).replace(/{epithet}/g, trainerEpithet(jid, msg) || trainerName(jid, msg));
     else if (sibling) {
       const sname = siblingName(jid, msg);
-      g = sname ? `هلا والله ${sname} 🌹` : SIBLINGS_GREETING_VARIANTS[Math.floor(Math.random() * SIBLINGS_GREETING_VARIANTS.length)];
+      const sephithet = siblingEpithet(jid, msg);
+      const greetName = sephithet || sname || "يا غالي";
+      g = `أهلاً وسهلاً ${sname || "يا غالي"}، أهلين ${greetName}، كيف حالك؟ إن شاء الله بخير. منور يا ${greetName}، كل شيء تمام؟ أنا هنا بأي وقت، تواصل معي متى ما بدك — بأي حاجة، وبنحكي بكل راحة.`;
     }
     else if (intimate) g = INTIMATE_GREETING;
     else {
@@ -504,7 +538,12 @@ async function routeText(sock, msg, jid, text, asVoice = false) {
       await respond(farewell);
     }
     else if (intimate) await respond(INTIMATE_FAREWELLS[Math.floor(Math.random() * INTIMATE_FAREWELLS.length)]);
-    else if (sibling) await respond(SIBLINGS_FAREWELLS[Math.floor(Math.random() * SIBLINGS_FAREWELLS.length)]);
+    else if (sibling) {
+      const sname = siblingName(jid, msg);
+      const sephithet = siblingEpithet(jid, msg) || sname || "يا غالي";
+      const farewell = SIBLINGS_FAREWELLS[Math.floor(Math.random() * SIBLINGS_FAREWELLS.length)].replace(/{name}/g, sname || "يا غالي").replace(/{epithet}/g, sephithet);
+      await respond(farewell);
+    }
     else if (fam) await respond(FAMILY_FAREWELLS[Math.floor(Math.random() * FAMILY_FAREWELLS.length)]);
     else await respond(GOODBYES[Math.floor(Math.random() * GOODBYES.length)]);
     return true;
