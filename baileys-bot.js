@@ -11,21 +11,22 @@ import QR from "qrcode";
 
 const SCHOOL_NAME = "مدرسة بديع لتعليم السياقة";
 const PHONE = process.env.SCHOOL_PHONE || "0568444407";
-let FAMILY_NUMBERS = ["0568828240", "0569268867", "0568828238"];
-let FAMILY_NAMES = { "0568828240": "نهال أم محمد", "0569268867": "هدى أم آدم", "0568828238": "سميرة أم منذر" };
+let FAMILY_NUMBERS = ["0568828240", "0569268867"];
+let FAMILY_NAMES = { "0568828240": "نهال أم محمد", "0569268867": "هدى أم آدم" };
 let INTIMATE_NUMBERS = ["0598742654"];
 let SIBLINGS_NUMBERS = [];
 let SIBLINGS_NAMES = {};
 const RELATIVE_INFO = new Map();
 let BOSS_NUMBERS = ["0568444405"];
-let TRAINER_NUMBERS = ["0562400502", "0568030693", "0568331002", "0562400404"];
-let TRAINER_NAMES = { "0562400502": "رائد أبو صبحة", "0568030693": "عمار أبو قبيطة", "0568331002": "بديع الصغير", "0562400404": "منال" };
+let TRAINER_NUMBERS = ["0562400502", "0568030693", "0568331002", "0562400562", "0568828238", "0562400404"];
+let TRAINER_NAMES = { "0562400502": "رائد أبو صبحة", "0568030693": "عمار أبو قبيطة", "0568331002": "بديع الزغير", "0562400562": "صدام أبو قبيطة", "0568828238": "سميرة أبو قبيطة", "0562400404": "منال شريتح" };
+let TRAINER_EPITHETS = { "0562400502": "أبو تامر", "0568030693": "أبو سليمان", "0562400562": "أبو حسن", "0568828238": "أم منذر" };
 const TRAINER_OWNER_REPLY = "رح أتواصل مع الاستاذ سمير ويرجعلك بأقصى سرعة.";
 const TRAINER_GREETING_VARIANTS = [
-  "أهلاً وسهلاً بالاستاذ {name}، نورتنا والله، الحمد لله على سلامتك، كيفك شو أخبارك؟ كيف الصحة الله يقويك؟ أنا المساعدة للمدير سمير، شو بneedي تفضل؟",
-  "حياك الله عمي {name}، اهلاً وسهلاً فيك، نورتنا والله، كيفك شو أخبارك؟ الله يعطيك الصحه ويعطيك العافية، أنا المساعدة للمدير سمير، شو بقدر أساعدك؟",
-  "صباح النور بالاستاذ {name}، أهلاً وسهلاً، نورتنا والله، كيف صحتك شو أخبارك؟ الله يقويك ويعطيك العافية، أنا المساعدة للمدير سمير، شو بneedي؟",
-  "مرحبا هلا بالاستاذ {name}، اهلاً وسهلاً فيك، الحمد لله على سلامتك، كيفك شو أخبارك؟ الله يديم صحتك ويعطيك العافية، أنا المساعدة للمدير سمير، شو بقدر أساعدك؟"
+  "أهلاً وسهلاً بالاستاذ {name}، أهلين {epithet}، نورك يا {epithet}. أنا هنا إذا بدك أي شيء، وأي طلب من المدرسة أو من الأستاذ سمير برجعلك عليه فوراً.",
+  "حياك الله عمي {name}، أهلين {epithet}، نورك يا {epithet}. أنا هنا إذا بدك أي شيء، وأي طلب من المدرسة أو من الأستاذ سمير برجعلك عليه فوراً.",
+  "صباح النور بالاستاذ {name}، أهلين {epithet}، نورك يا {epithet}. أنا هنا إذا بدك أي شيء، وأي طلب من المدرسة أو من الأستاذ سمير برجعلك عليه فوراً.",
+  "مرحبا هلا بالاستاذ {name}، أهلين {epithet}، نورك يا {epithet}. أنا هنا إذا بدك أي شيء، وأي طلب من المدرسة أو من الأستاذ سمير برجعلك عليه فوراً."
 ];
 const TRAINER_FAREWELLS = [
   "الله يعطيك الصحه يا استاذ {name}، مع الف سلامة، الله يقويك ويبارك فيك، كل الاحترام لك.",
@@ -166,6 +167,7 @@ function relativeNote(from, msg) {
 function isBoss(from, msg) { const pn = pnOf(from, msg); return BOSS_NUMBERS.some(n => matchesPn(pn, n)); }
 function isTrainer(from, msg) { const pn = pnOf(from, msg); return TRAINER_NUMBERS.some(n => matchesPn(pn, n)); }
 function trainerName(from, msg) { const pn = pnOf(from, msg); const n = TRAINER_NUMBERS.find(n => matchesPn(pn, n)); return TRAINER_NAMES[n] || ""; }
+function trainerEpithet(from, msg) { const pn = pnOf(from, msg); const n = TRAINER_NUMBERS.find(n => matchesPn(pn, n)); return TRAINER_EPITHETS[n] || ""; }
 function familyName(from, msg) { const pn = pnOf(from, msg); const n = FAMILY_NUMBERS.find(n => matchesPn(pn, n)); return FAMILY_NAMES[n] || ""; }
 function studentName(from, msg) { const pn = pnOf(from, msg); const num = Object.keys(STUDENT_NAMES).find(n => matchesPn(pn, n)); return num ? STUDENT_NAMES[num] : ""; }
 function callerName(from, msg) { return siblingName(from, msg) || familyName(from, msg) || studentName(from, msg) || (isTraining(from) ? trainerName(from, msg) : "") || (isIntimate(from, msg) ? "الانتيمة" : ""); }
@@ -442,7 +444,7 @@ async function routeText(sock, msg, jid, text, asVoice = false) {
     const tg = timeGreeting();
     let g;
     if (boss) g = BOSS_GREETING_VARIANTS[Math.floor(Math.random() * BOSS_GREETING_VARIANTS.length)];
-    else if (trainer) g = TRAINER_GREETING_VARIANTS[Math.floor(Math.random() * TRAINER_GREETING_VARIANTS.length)].replace("{name}", trainerName(jid, msg));
+    else if (trainer) g = TRAINER_GREETING_VARIANTS[Math.floor(Math.random() * TRAINER_GREETING_VARIANTS.length)].replace(/{name}/g, trainerName(jid, msg)).replace(/{epithet}/g, trainerEpithet(jid, msg) || trainerName(jid, msg));
     else if (sibling) {
       const sname = siblingName(jid, msg);
       g = sname ? `هلا والله ${sname} 🌹` : SIBLINGS_GREETING_VARIANTS[Math.floor(Math.random() * SIBLINGS_GREETING_VARIANTS.length)];
@@ -497,7 +499,8 @@ async function routeText(sock, msg, jid, text, asVoice = false) {
     if (boss) await respond(BOSS_FAREWELLS[Math.floor(Math.random() * BOSS_FAREWELLS.length)]);
     else if (trainer) {
       const tname = trainerName(jid, msg);
-      const farewell = TRAINER_FAREWELLS[Math.floor(Math.random() * TRAINER_FAREWELLS.length)].replace(/{name}/g, tname);
+      const tephithet = trainerEpithet(jid, msg) || tname;
+      const farewell = TRAINER_FAREWELLS[Math.floor(Math.random() * TRAINER_FAREWELLS.length)].replace(/{name}/g, tname).replace(/{epithet}/g, tephithet);
       await respond(farewell);
     }
     else if (intimate) await respond(INTIMATE_FAREWELLS[Math.floor(Math.random() * INTIMATE_FAREWELLS.length)]);
