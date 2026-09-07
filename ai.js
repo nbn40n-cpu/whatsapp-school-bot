@@ -91,7 +91,8 @@ export function cleanReply(reply) {
 
 export async function getAIResponse(userMessage, isFamily = false, isIntimate = false, isBoss = false, isTrainer = false, isOwner = false, chatId = "", isSibling = false, relativeNote = "") {
   const [schoolInfo, styles, learnBlock] = await Promise.all([getSchoolInfo(), getStyles(), isOwner || isFamily || isIntimate || isBoss || isTrainer || isSibling ? Promise.resolve("") : getLearningBlock()]);
-  const system = (isOwner ? schoolInfo + styles.owner : isBoss ? schoolInfo + styles.boss : isTrainer ? schoolInfo + styles.trainer : isIntimate ? schoolInfo + styles.intimate : isSibling ? schoolInfo + styles.sibling + (relativeNote || "") : isFamily ? schoolInfo + styles.family : schoolInfo + styles.student + (learnBlock || "")) + NO_THINKING;
+  const baseStyle = isOwner ? styles.owner : isBoss ? styles.boss : isTrainer ? styles.trainer : isIntimate ? styles.intimate : isSibling ? styles.sibling + (relativeNote || "") : isFamily ? styles.family : styles.student + (learnBlock || "");
+  const system = (isFamily ? "" : schoolInfo) + baseStyle + NO_THINKING;
   const history = (chatMemory.get(chatId) || []).slice(-MEMORY_LIMIT);
   const settings = await aiSettings();
   const models = await getModels();
