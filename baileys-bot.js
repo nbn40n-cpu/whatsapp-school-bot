@@ -127,7 +127,8 @@ const STUDENT_NAMES = {};
 const greeted = new Set();
 const seen = new Set();
 const mediaNotified = new Set();
-const chatPaused = new Map();
+const ownerActive = new Map();
+const OWNER_PAUSE_MS = 5 * 60 * 1000;
 const mySentIds = new Set();
 const lastErrorReply = new Map();
 const lidToPn = new Map();
@@ -1016,6 +1017,7 @@ async function start() {
       if (!isPersonal(jid)) continue;
 
       if (m.key?.fromMe) {
+        ownerActive.set(jid, Date.now());
         const sid = m.key?.id || "";
         if (sid && !mySentIds.has(sid) && !seen.has("own_" + sid)) {
           seen.add("own_" + sid);
@@ -1025,18 +1027,8 @@ async function start() {
             const cmd = otext.trim();
             const cmdLower = cmd.toLowerCase();
 
-            if (/^(وقفي|استني|وقف|pau|stop|اسكتي|اسكت)$/i.test(cmdLower)) {
-              chatPaused.set(jid, true);
-              await sendMsg(sock, jid, "⏸️ ماشي، ساكتة بهالمحادثة. اكتب 'كملي' لاستئناف.");
-              continue;
-            }
-            if (/^(كملي|شغّل|resumes|resume|start|احكي|حكي)$/i.test(cmdLower)) {
-              chatPaused.delete(jid);
-              await sendMsg(sock, jid, "▶️ تمام، رجعت أشتغل بهالمحادثة.");
-              continue;
-            }
-            if (jid === ownerJid) {
-              if (/^(شوفي|rs|الرسائل|messages|recent)$/i.test(cmdLower)) {
+            if (/^(شوفي|rs|الرسائل|messages|recent)$/i.test(cmdLower)) {
+              if (jid === ownerJid) {
                 const entries = [...lastStudentQ.entries()].slice(-10);
                 if (!entries.length) { await sendMsg(sock, ownerJid, "ما في رسائل حديثة."); continue; }
                 let list = "📋 آخر 10 محادثات:\n";
@@ -1046,36 +1038,30 @@ async function start() {
                     + (lastObj.q ? `: "${lastObj.q.slice(0, 40)}..."` : "");
                 }
                 await sendMsg(sock, ownerJid, list);
-                continue;
               }
-              const sendMatch = cmd.match(/^(?:ارسلي|ابعثي|rs)\s+(\d+)\s+(.+)/i);
-              if (sendMatch) {
-                const num = "972" + sendMatch[1].replace(/^0/, "");
-                const msg = sendMatch[2];
-                const target = num + "@s.whatsapp.net";
-                try {
-                  await sock.sendMessage(target, { text: msg });
-                  await sendMsg(sock, ownerJid, `✅ تم إرسال الرسالة لـ ${sendMatch[1]}`);
-                } catch (e) {
-                  await sendMsg(sock, ownerJid, `❌ فشل الإرسال: ${e.message}`);
-                }
-                continue;
-              }
+              continue;
             }
-
-            if (jid !== ownerJid && !chatPaused.get(jid)) {
+            const sendMatch = cmd.match(/^(?:ارسلي|ابعثي|rs)\s+(\d+)\s+(.+)/i);
+            if (sendMatch && jid === ownerJid) {
+              const num = "972" + sendMatch[1].replace(/^0/, "");
+              const msg = sendMatch[2];
+              const target = num + "@s.whatsapp.net";
               try {
-                await handleMsg(sock, m, jid);
+                await sock.sendMessage(target, { text: msg });
+                await sendMsg(sock, ownerJid, `✅ تم إرسال الرسالة لـ ${sendMatch[1]}`);
               } catch (e) {
-                console.error("❌ معالجة رسالة المالك فشلت:", e.message);
+                await sendMsg(sock, ownerJid, `❌ فشل الإرسال: ${e.message}`);
               }
+              continue;
             }
           }
         }
         continue;
       }
 
-      if (chatPaused.get(jid)) {
+      const lastOwner = ownerActive.get(jid) || 0;
+      if (Date.now() - lastOwner < OWNER_PAUSE_MS) {
+        console.log(`🔕 صمت - المالك عم يرد في ${jid}، تأجيل الرد`);
         continue;
       }
 
