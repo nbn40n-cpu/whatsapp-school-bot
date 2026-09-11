@@ -424,7 +424,7 @@ async function handleMsg(sock, msg, jid) {
       seen.add(key);
       console.log(`🎤 ${jid}: ${transcript.slice(0, 60)}`);
       if (await routeText(sock, msg, jid, transcript, true)) return;
-      const reply = await getAIResponse(transcript, fam, intimate, boss, trainer, false, jid, sibling, sibling ? relativeNote(jid, msg) : "");
+      const reply = await getAIResponse(transcript, fam, intimate, boss, trainer, false, jid, sibling, sibling ? relativeNote(jid, msg) : "", fam ? familyName(jid, msg) : "");
       await sendVoice(sock, jid, reply);
       return;
     } catch (e) {
@@ -447,7 +447,7 @@ async function handleMsg(sock, msg, jid) {
   pushEvent({ dir: "in", from: jid, text, kind: "text" });
   learnStudentName(jid, msg, text);
   if (await routeText(sock, msg, jid, text)) return;
-  const reply = await getAIResponse(text, fam, intimate, boss, trainer, false, jid, sibling, sibling ? relativeNote(jid, msg) : "");
+  const reply = await getAIResponse(text, fam, intimate, boss, trainer, false, jid, sibling, sibling ? relativeNote(jid, msg) : "", fam ? familyName(jid, msg) : "");
   if (reply === ERROR_REPLY) {
     bumpCounter("unanswered").then(v => v);
     setLastError("ذكاء عجز عن الرد لـ" + jid);
