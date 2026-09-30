@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers, downloadMediaMessage } from "@whiskeysockets/baileys";
-import { getAIResponse, transcribeAudio, textToSpeech, ERROR_REPLY } from "./ai.js";
+import { getAIResponse, transcribeAudio, textToSpeech, ERROR_REPLY, lastSttError } from "./ai.js";
 import { loadStore, getStore, saveStore, updateStore } from "./store.js";
 import { bumpCounter, setLastError, setLastStart, pushEvent, trackChat } from "./stats.js";
 import { startPanel, setPaused, getControl } from "./panel/server.js";
@@ -361,6 +361,17 @@ async function sendMsg(sock, to, text) {
     } catch (e) { if (i < 2) await new Promise(r => setTimeout(r, 2000)); }
   }
 }
+const audioErrorLog = new Map();
+async function reportAudioError(sock, from, detail) {
+  try {
+    const now = Date.now();
+    const last = audioErrorLog.get(detail) || 0;
+    if (now - last < 10 * 60 * 1000) return;
+    audioErrorLog.set(detail, now);
+    if (!ownerJid) return;
+    await sendMsg(sock, ownerJid, `⚠️ خطأ صوت من ${from}:\n${String(detail).slice(0, 300)}`);
+  } catch (_) {}
+}
 async function sendVoice(sock, to, text) {
   try {
     const clean = sanitizeReply(text);
@@ -402,23 +413,36 @@ async function handleMsg(sock, msg, jid) {
   const special = fam || intimate || sibling;
   trackChat(jid);
   if (!text && content.audioMessage) {
+    bumpCounter("messages").then(v => v);
+    bumpCounter("voice").then(v => v);
+    pushEvent({ dir: "in", from: jid, text: "[صوت]", kind: "voice" });
+    let transcript = "";
     try {
-      bumpCounter("messages").then(v => v);
-      bumpCounter("voice").then(v => v);
-      pushEvent({ dir: "in", from: jid, text: "[صوت]", kind: "voice" });
-      console.log(`🎧 ${jid}: بدء معالجة الصوت...`);
+      console.log(`🎧 ${jid}: بدء تنزيل الصوت...`);
       const audioBuffer = await downloadMediaMessage(msg, "buffer", {});
       console.log(`🎧 ${jid}: تم تنزيل الصوت (${audioBuffer?.length || 0} bytes)`);
-      const mimeType = content.audioMessage.mimetype || "audio/ogg";
-      const transcript = await transcribeAudio(audioBuffer, mimeType);
+      if (!audioBuffer || !audioBuffer.length) throw new Error("تنزيل الصوت فشل (buffer فاضي)");
+      const mimeType = (content.audioMessage.mimetype || "audio/ogg").split(";")[0].trim();
+      transcript = await transcribeAudio(audioBuffer, mimeType);
       console.log(`🎧 ${jid}: النص المنسوخ => ${JSON.stringify((transcript || "").slice(0, 80))}`);
-      if (!transcript) {
-        if (!mediaNotified.has(jid)) {
-          mediaNotified.add(jid);
-          await sendMsg(sock, jid, "ما فهمت الرسالة الصوتية، ممكن تعيد إرسالها أو تكتبها نصياً؟");
-        }
-        return;
+    } catch (e) {
+      console.error("🎤 تنزيل/تفريغ الصوت فشل:", e?.message || e);
+      await reportAudioError(sock, jid, `تنزيل/تفريغ: ${e?.message || e}`);
+      if (!mediaNotified.has(jid)) {
+        mediaNotified.add(jid);
+        await sendMsg(sock, jid, "ما سمعت الصوت، اكتبلي نصاً لو سمعت.");
       }
+      return;
+    }
+    if (!transcript || !transcript.trim()) {
+      if (lastSttError) await reportAudioError(sock, jid, `تفريغ: ${lastSttError}`);
+      if (!mediaNotified.has(jid)) {
+        mediaNotified.add(jid);
+        await sendMsg(sock, jid, "ما فهمت الصوت، اكتبه نصاً لو سمعت.");
+      }
+      return;
+    }
+    try {
       const key = jid + "_" + (msg.key?.id || text + "_" + (msg.messageTimestamp || 0));
       if (seen.has(key)) return;
       seen.add(key);
@@ -426,12 +450,12 @@ async function handleMsg(sock, msg, jid) {
       if (await routeText(sock, msg, jid, transcript, true)) return;
       const reply = await getAIResponse(transcript, fam, intimate, boss, trainer, false, jid, sibling, sibling ? relativeNote(jid, msg) : "", fam ? familyName(jid, msg) : "");
       await sendVoice(sock, jid, reply);
-      return;
     } catch (e) {
-      console.error("🎤", e.message);
-      await sendMsg(sock, jid, "مشكلة مؤقتة بمعالجة الرسالة الصوتية، ممكن تعيد إرسالها أو تكتبها نصياً؟");
-      return;
+      console.error("🎤 الرد على الصوت فشل:", e?.message || e);
+      await reportAudioError(sock, jid, `رد: ${e?.message || e}`);
+      await sendMsg(sock, jid, ERROR_REPLY);
     }
+    return;
   }
   if (!text) {
     if (content.imageMessage || content.videoMessage || content.documentMessage || content.stickerMessage) {

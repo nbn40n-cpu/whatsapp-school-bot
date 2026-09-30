@@ -193,7 +193,9 @@ export async function getAIFactReply(fact, userMessage, isFamily = false, isInti
   return fact;
 }
 
+export let lastSttError = "";
 export async function transcribeAudio(audioBuffer, mimeType) {
+  lastSttError = "";
   try {
     const blob = new Blob([audioBuffer], { type: mimeType });
     const file = new File([blob], "voice.ogg", { type: mimeType });
@@ -208,6 +210,7 @@ export async function transcribeAudio(audioBuffer, mimeType) {
     return transcript || "";
   } catch (error) {
     console.error("Transcribe Error:", error.message);
+    lastSttError = `${error?.status || ""} ${error?.message || error}`.trim();
     return "";
   }
 }
