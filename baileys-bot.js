@@ -430,7 +430,7 @@ async function handleMsg(sock, msg, jid) {
       await reportAudioError(sock, jid, `تنزيل/تفريغ: ${e?.message || e}`);
       if (!mediaNotified.has(jid)) {
         mediaNotified.add(jid);
-        await sendMsg(sock, jid, "ما سمعت الصوت، اكتبلي نصاً لو سمعت.");
+        await sendMsg(sock, jid, "ما سمعت الصوت، اكتبلي نصاً.");
       }
       return;
     }
@@ -438,7 +438,7 @@ async function handleMsg(sock, msg, jid) {
       if (lastSttError) await reportAudioError(sock, jid, `تفريغ: ${lastSttError}`);
       if (!mediaNotified.has(jid)) {
         mediaNotified.add(jid);
-        await sendMsg(sock, jid, "ما فهمت الصوت، اكتبه نصاً لو سمعت.");
+        await sendMsg(sock, jid, "ما فهمت الصوت، اكتبه نصاً.");
       }
       return;
     }
