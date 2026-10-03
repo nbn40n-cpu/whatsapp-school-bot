@@ -488,6 +488,7 @@ async function handleMsg(sock, msg, jid) {
   await sendMsg(sock, jid, reply);
 }
 
+const SCHOOL_TOPIC_PATTERN = /(مدرسه|سعر|الاسعار|بشيكل|شيكل|تكلف|دينار|موعد|دروس|درس|تيست|توريا|امتحان|فحص|اوراق|معامله|رخصه|سياره|قياده|باص|دوره|محرك)/i;
 async function routeText(sock, msg, jid, text, asVoice = false) {
   const fam = isFamily(jid, msg);
   const intimate = isIntimate(jid, msg);
@@ -615,6 +616,11 @@ async function routeText(sock, msg, jid, text, asVoice = false) {
     } else {
       await respond("رقم المدير سمير: 0568444407");
     }
+    return true;
+  }
+  const noSchoolTalk = fam || intimate || trainer;
+  if (noSchoolTalk && SCHOOL_TOPIC_PATTERN.test(t)) {
+    await respond("شوي بيرجعلك الاستاذ سمير.");
     return true;
   }
   const storeReply = await findStoreReply(text, t);

@@ -46,7 +46,7 @@ async function runEdgeTTS(args) {
   throw lastErr;
 }
 
-export const ERROR_REPLY = "رح يرجعلك الاستاذ سمير أول ما يشوف الرسالة.";
+export const ERROR_REPLY = "شوي بيرجعلك الاستاذ سمير.";
 const chatMemory = new Map();
 const MEMORY_LIMIT = 6;
 const CONFUSED_REPLY = "هههه آسفة، ما فهمتك، عيدها بكلمات ثانية؟";
@@ -60,7 +60,7 @@ const NO_THINKING = `
 - إذا الطالب نجح أو سأل عن دروس، رد بجملة واحدة مثل "مبروك، تواصل مع الاستاذ سمير" وخلاص.
 - جاوب بس عاللي سأل عنه، قصير مباشر بدون مقدمات ولا أسئلة مرتدة.
 - ⚠️ قاعدة الأهم: طول ردك = طول السؤال. إذا السؤال كلمة أو كلمتين (مثل "كيفك" أو "مكيف السعر" أو "جاهز")، رد بكلمة أو كلمتين فقط. إذا السؤال جملة قصيرة، رد بجملة قصيرة. لا تطلابي ولا تضيفي كلام زيادة أبداً.
-- ⚠️ إذا ما بتعرفي الجواب أو ما بتعرفي المعلومة: قولي بالضبط "رح يرجعلك الاستاذ سمير أول ما يشوف الرسالة" وخلاص. ممنوع تقول "مشكلة مؤقتة" أو "حاول تاني" أو "ما بعرف" أو تعتذار أو ما تختلقي جواب.
+- ⚠️ إذا ما بتعرفي الجواب أو ما بتعرفي المعلومة: قولي بالضبط "شوي بيرجعلك الاستاذ سمير" وخلاص. ممنوع تقول "مشكلة مؤقتة" أو "حاول تاني" أو "ما بعرف" أو تعتذار أو ما تختلقي جواب.
 - ممنوع تخترعي أي سعر أو موعد أو رقم أو اسم. إذا المعلومة مو موجودة بالمعلومات، لا تخترعيها.
 - ممنوع تقولي "هل تحتاج مساعدة؟" أو "شو بقدر أساعدك؟" أو "تعرف عاللي سأل عنه" — إجبي وخلاص.
 - ممنوع الختام الطويل (الوداع + نصيحة + دعاء كلها مع بعض) — جملة وحدة عند اللازم فقط.
@@ -104,7 +104,8 @@ export async function getAIResponse(userMessage, isFamily = false, isIntimate = 
   const [schoolInfo, styles, learnBlock] = await Promise.all([getSchoolInfo(), getStyles(), isOwner || isFamily || isIntimate || isBoss || isTrainer || isSibling ? Promise.resolve("") : getLearningBlock()]);
   const familyNameNote = isFamily && familyName ? `\n[الشخص اللي عم تحكي معه الآن: ${familyName}. ناديها باسمها في كل رد]\n` : "";
   const baseStyle = isOwner ? styles.owner : isBoss ? styles.boss : isTrainer ? styles.trainer : isIntimate ? styles.intimate : isSibling ? styles.sibling + (relativeNote || "") : isFamily ? styles.family : styles.student + (learnBlock || "");
-  const system = (isFamily ? "" : schoolInfo) + familyNameNote + baseStyle + NO_THINKING;
+  const noSchoolInfo = isFamily || isIntimate || isTrainer;
+  const system = (noSchoolInfo ? "" : schoolInfo) + familyNameNote + baseStyle + NO_THINKING;
   const history = (chatMemory.get(chatId) || []).slice(-MEMORY_LIMIT);
   const settings = await aiSettings();
   const models = await getModels();
