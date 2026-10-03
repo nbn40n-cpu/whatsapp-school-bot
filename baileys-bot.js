@@ -397,8 +397,8 @@ async function sendVoice(sock, to, text) {
 function shortenForVoice(t) {
   const s = (t || "").replace(/\s+/g, " ").trim();
   if (!s) return s;
-  const parts = s.split(/(?<=[.!؟?])\s+/);
-  return parts.slice(0, 3).join(" ") || s;
+  const parts = s.split(/(?<=[.!؟?])\s+/).filter(Boolean);
+  return (parts[0] || s).slice(0, 220);
 }
 
 async function handleMsg(sock, msg, jid) {
