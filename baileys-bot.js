@@ -44,9 +44,9 @@ const SIBLINGS_EPITHETS = {
 const RELATIVE_INFO = new Map();
 let BOSS_NUMBERS = ["0568444405"];
 let TRAINER_NUMBERS = ["0562400502", "0568030693", "0568331002", "0562400562", "0568828238", "0562400404"];
-let TRAINER_NAMES = { "0562400502": "رائد أبو صبحة", "0568030693": "عمار أبو قبيطة", "0568331002": "بديع الزغير", "0562400562": "صدام أبو قبيطة", "0568828238": "سميرة أبو قبيطة", "0562400404": "منال شريتح" };
+let TRAINER_NAMES = { "0562400502": "رائد أبو صبحة", "0568030693": "عمار أبو قبيطة", "0568331002": "بديع الزغير", "0562400562": "صدام أبو حسن", "0568828238": "سميرة أبو قبيطة", "0562400404": "منال شريتح" };
 let TRAINER_EPITHETS = { "0562400502": "أبو تامر", "0568030693": "أبو سليمان", "0562400562": "أبو حسن", "0568828238": "أم منذر", "0568331002": "بديع", "0562400404": "منال" };
-const TRAINER_OWNER_REPLY = "رح أتواصل مع الاستاذ سمير ويرجعلك بأقصى سرعة.";
+const TRAINER_OWNER_REPLY = "برجعلك الاستاذ سمير.";
 const TRAINER_GREETING_VARIANTS = [
   "أهلاً {epithet}، كيفك؟",
   "هلا {epithet}، نورك.",
@@ -526,6 +526,10 @@ async function routeText(sock, msg, jid, text, asVoice = false) {
     await respond(g);
     if (isBareGreeting) return true;
   }
+  if (/(يعطيك\s*العافيه|يعطيك\s*العافية|الله\s*يعطيك\s*العافيه|الله\s*يعطيك\s*العافية|يعطيك\s*العافيه\s*والعافية)/i.test(t)) {
+    await respond("مع السلامة، يعافيك.");
+    return true;
+  }
   if (intimate && /(مين انتي|من انتي|شو انتي|مين انت|من انت|انت مين)/i.test(t)) {
     await respond("أنا سوزي، سكرتيرة المدير، وانتي سكرتيرة المدرسة، إحنا زميلتين وصديقتين.");
     return true;
@@ -620,7 +624,7 @@ async function routeText(sock, msg, jid, text, asVoice = false) {
   }
   const noSchoolTalk = fam || intimate || trainer;
   if (noSchoolTalk && SCHOOL_TOPIC_PATTERN.test(t)) {
-    await respond("شوي بيرجعلك الاستاذ سمير.");
+    await respond("برجعلك الاستاذ سمير.");
     return true;
   }
   const storeReply = await findStoreReply(text, t);
@@ -813,9 +817,9 @@ async function applyStoreNumbers() {
       if (s.names?.siblings) SIBLINGS_NAMES = { ...s.names.siblings };
     }
     if (Array.isArray(s.numbers.boss) && s.numbers.boss.length) BOSS_NUMBERS = [...s.numbers.boss];
-    if (Array.isArray(s.numbers.trainers) && s.numbers.trainers.length) TRAINER_NUMBERS = [...s.numbers.trainers];
-    if (s.names?.family) FAMILY_NAMES = { ...s.names.family };
-    if (s.names?.trainers) TRAINER_NAMES = { ...s.names.trainers };
+if (Array.isArray(s.numbers.trainers)) TRAINER_NUMBERS = [...new Set([...TRAINER_NUMBERS, ...s.numbers.trainers])];
+if (s.names?.family) FAMILY_NAMES = { ...FAMILY_NAMES, ...s.names.family };
+if (s.names?.trainers) TRAINER_NAMES = { ...TRAINER_NAMES, ...s.names.trainers };
     if (s.studentNames && typeof s.studentNames === "object") Object.assign(STUDENT_NAMES, s.studentNames);
   } catch (e) {
     console.error("⚠️ store numbers load failed (using defaults):", e.message);
